@@ -1,17 +1,34 @@
 # Averlen web foundation
 
-Local preview only. Serve the parent website folder with a static HTTP server
-and open `/preview/`. No packages, credentials, database, or customer data are
-required. JavaScript modules require HTTP rather than opening `index.html` as a file.
+Local preview only. Run `python3 scripts/build-preview.py` from the website
+checkout after source edits. This generates both `preview/index.html` and the
+parent workspace's `AVERLEN_WEB_PREVIEW.html`. Either generated file opens
+directly in a browser without a server, installation, or credentials. For browser
+QA, serve the website folder over loopback HTTP and open `/preview/`.
 
 The palette, four main tabs, category names, synthetic transactions, and account
 balances come from the iPhone app. Sample changes live in memory only. The CSP
 blocks outgoing API connections; this preview cannot sign in or access live data.
 
-Implemented: responsive navigation; monthly spending, income and net; cumulative
-spending chart; category drilldowns; transaction search and filters; sample
-categorization; same-day monthly comparisons; asset/liability reconciliation;
-account details; light/dark appearance; keyboard-accessible dialogs.
+Implemented: sign-in design and sample-session entry; responsive navigation;
+monthly spending, income and net; cumulative spending chart; category drilldowns;
+transaction search, filters and sample categorization; same-day category change
+comparisons and monthly reports; net worth history with 1M/3M/6M controls; manual
+asset/liability add/edit/remove; a uniform ownership display share; retirement
+and debt payoff illustrations; saved-data export; account management and a
+sample-only deletion walkthrough; light/dark appearance and accessible dialogs.
+
+The login fields and live sign-in controls are disabled. Entry uses the explicit
+sample-account action, not a fake authentication success. Deletion simulates a
+fresh-identity step and final confirmation and then clears the sample session.
+The pure deletion policy blocks shared owners pending ownership transfer, but is
+not a replacement for the server's authorization and deletion safeguards.
+
+Planning is an initial subset of the app: fixed solo retirement contributions
+and return, and a single fixed-rate debt with extra/lump-sum scenarios. No live
+benefit, tax, healthcare, or household retirement modeling is provided. The
+ownership view applies one percentage to all accounts. Real app parity remains
+future work. All new scenario inputs remain in memory only.
 
 Next: use existing Firebase identity, the server-authoritative billing status,
 and household-scoped sync read API. Check the deployed server source before
@@ -23,4 +40,4 @@ cache clearing on sign-out, concurrent household/account switching, subscription
 states, and deleted/purged transaction handling need explicit implementation and
 verification before enabling live access. Never derive access from client state.
 
-No website login form or disabled bank-connect placeholder is shown to users.
+Public hosting is unchanged by this local preview revision.
