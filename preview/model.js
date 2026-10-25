@@ -19,9 +19,32 @@ export const accounts = [
 export function localDateKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
+// Older synthetic months so Trends and pacing have a year of history, like the
+// app's demo. Deterministic: the same dates and amounts on every load.
+function historySpecs() {
+  let seed = 7;
+  const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const vary = (cents, spread = .25) => Math.round(cents * (1 - spread + random() * spread * 2));
+  const rows = [];
+  const add = (daysAgo, merchant, cents, category, income = false) => rows.push({ id: `demo-h${rows.length}`, daysAgo, merchant, cents, category, income, transfer: false });
+  for (let daysAgo = 30; daysAgo <= 372; daysAgo++) {
+    if (daysAgo < 89 && daysAgo % 2) continue; // lighter where the app demo already has rows
+    if (daysAgo >= 89 && daysAgo % 14 === 0) add(daysAgo, 'Acme Corp Payroll', 425000, 'income', true);
+    if (daysAgo % 7 === 3) add(daysAgo, random() < .5 ? 'Whole Foods Market' : "Trader Joe's", vary(9800), 'groceries');
+    if (daysAgo % 7 === 1 || daysAgo % 7 === 5) add(daysAgo, ['Chipotle', 'Starbucks', 'Sweetgreen', 'Local Bistro'][Math.floor(random() * 4)], vary(2400, .5), 'restaurants');
+    if (daysAgo % 9 === 2) add(daysAgo, random() < .5 ? 'Shell' : 'Uber', vary(4200), 'transport');
+    if (daysAgo % 30 === 6) add(daysAgo, 'Netflix', 1549, 'subscriptions');
+    if (daysAgo % 30 === 11) add(daysAgo, 'Spotify', 1199, 'subscriptions');
+    if (daysAgo % 30 === 16) add(daysAgo, 'City Power & Light', vary(11200, .2), 'utilities');
+    if (daysAgo % 17 === 4) add(daysAgo, random() < .5 ? 'Target' : 'Amazon', vary(6500, .6), 'shopping');
+    if (daysAgo % 23 === 8) add(daysAgo, random() < .5 ? 'AMC Theatres' : 'Steam', vary(3200, .4), 'entertainment');
+  }
+  return rows;
+}
+const history = historySpecs();
 export function makeDemo(today = new Date()) {
   const anchor = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12);
-  return specs.map(spec => {
+  return [...specs, ...history].map(spec => {
     const date = new Date(anchor);
     date.setDate(date.getDate() - spec.daysAgo);
     return { ...spec, date: localDateKey(date) };
@@ -67,6 +90,119 @@ export function categoryChanges(rows, month, today = new Date()) {
     return { ...cat, now, before, delta: now - before };
   }).filter(cat => cat.now || cat.before).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
   return { available: true, prior, cutoff, changes };
+}
+const daysIn = month => new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
+export function addMonths(month, count) {
+  const date = new Date(`${month}-01T12:00:00`);
+  date.setMonth(date.getMonth() + count);
+  return localDateKey(date).slice(0, 7);
+}
+// Missing history is not a zero-spend month: only months covered from day 1 count.
+const coveredFrom = rows => rows.map(row => row.date).sort()[0];
+const isCovered = (rows, month) => { const start = coveredFrom(rows); return Boolean(start) && start <= `${month}-01`; };
+function iqrBounds(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const q1 = sorted[Math.floor(sorted.length / 4)], q3 = sorted[Math.floor(sorted.length * 3 / 4)], iqr = q3 - q1;
+  return [q1 - 1.5 * iqr, q3 + 1.5 * iqr];
+}
+// HomeView's trimmed mean: plain mean below three months, IQR-filtered above.
+function trimmedMean(values) {
+  if (!values.length) return null;
+  if (values.length < 3) return values.reduce((a, b) => a + b, 0) / values.length;
+  const [low, high] = iqrBounds(values), kept = values.filter(v => v >= low && v <= high);
+  return kept.length ? kept.reduce((a, b) => a + b, 0) / kept.length : [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
+}
+
+// Home hero badge: the current month compares with the same day of last month.
+export function monthChange(rows, month, today = new Date()) {
+  const isCurrent = month === localDateKey(today).slice(0, 7), prior = previousMonth(month);
+  const cutoff = isCurrent ? Math.min(today.getDate(), daysIn(prior)) : 31;
+  const now = totals(forMonth(rows, month)).spending, before = totals(forMonth(rows, prior, cutoff)).spending;
+  if (!before) return null;
+  return { percent: (now - before) / before * 100, label: isCurrent ? 'vs this time last month' : 'vs last month' };
+}
+// Home "Worth a look": the category that rose most against the same comparison window.
+export function attentionStory(rows, month, today = new Date()) {
+  const isCurrent = month === localDateKey(today).slice(0, 7), prior = previousMonth(month);
+  const cutoff = isCurrent ? Math.min(today.getDate(), daysIn(prior)) : 31;
+  const previousRows = forMonth(rows, prior, cutoff);
+  if (!totals(previousRows).spending) return null;
+  const now = categoryTotals(forMonth(rows, month)), before = categoryTotals(previousRows);
+  const best = categories.filter(cat => cat.id !== 'income' && cat.income !== true && !cat.excluded).map(cat => {
+    const current = now.find(row => row.id === cat.id)?.cents || 0, previous = before.find(row => row.id === cat.id)?.cents || 0;
+    return { ...cat, current, previous, delta: current - previous };
+  }).filter(cat => Math.max(cat.current, cat.previous) >= 4000 && cat.delta >= 2500).sort((a, b) => b.delta - a.delta)[0];
+  return best ? { ...best, comparison: isCurrent ? 'to date' : '', prior } : null;
+}
+// Home pace chart: cumulative spending against the typical curve of up to 12
+// prior covered months, outlier months removed, with HomeView's capped projection.
+export function pace(rows, month, today = new Date()) {
+  const isCurrent = month === localDateKey(today).slice(0, 7), length = daysIn(month);
+  const day = isCurrent ? today.getDate() : length;
+  const dailyFor = target => { const out = Array(daysIn(target)).fill(0); eligible(rows).filter(tx => !tx.income && tx.date.slice(0, 7) === target).forEach(tx => { out[Number(tx.date.slice(8)) - 1] += tx.cents; }); return out; };
+  let running = 0;
+  const current = dailyFor(month).slice(0, day).map(cents => running += cents);
+  const result = { length, day, current, spent: running, typical: null, typicalToday: null, projected: null };
+  if (!isCurrent || day < 3) return result;
+  const history = [];
+  for (let offset = 1; offset <= 12; offset++) {
+    const target = addMonths(month, -offset);
+    if (!isCovered(rows, target)) break;
+    const daily = dailyFor(target), total = daily.reduce((a, b) => a + b, 0);
+    if (total > 0) history.push({ daily, total });
+  }
+  if (!history.length) return result;
+  const totalsList = history.map(row => row.total);
+  const [low, high] = history.length >= 3 ? iqrBounds(totalsList) : [-Infinity, Infinity];
+  const kept = history.filter(row => row.total >= low && row.total <= high);
+  let cumulative = 0;
+  result.typical = Array.from({ length }, (_, i) => {
+    const samples = kept.filter(row => i < row.daily.length);
+    return cumulative += samples.length ? samples.reduce((sum, row) => sum + row.daily[i], 0) / samples.length : 0;
+  }).map(Math.round);
+  result.typicalToday = result.typical[day - 1];
+  const typicalMonth = trimmedMean(totalsList);
+  if (day >= 5 && typicalMonth != null) {
+    const ratio = result.typicalToday > 0 ? Math.min(running / result.typicalToday, 1.5) : 1;
+    result.projected = Math.round(Math.max(running, typicalMonth * ratio));
+  }
+  return result;
+}
+// Trends: each category against your typical month (up to 12 prior covered
+// months with data), through the same day while the month is in progress.
+export function trendsComparison(rows, month, today = new Date()) {
+  const isCurrent = month === localDateKey(today).slice(0, 7), cutoff = isCurrent ? today.getDate() : 31;
+  const history = [];
+  for (let offset = 1; offset <= 12; offset++) {
+    const target = addMonths(month, -offset);
+    if (!isCovered(rows, target)) break;
+    const monthRows = forMonth(rows, target, cutoff);
+    if (monthRows.some(tx => !tx.income)) history.unshift({ month: target, rows: monthRows });
+  }
+  const count = history.length;
+  const label = !count ? 'Not enough history' : isCurrent ? (count === 1 ? 'vs prior month to date' : 'vs typical month to date') : (count === 1 ? 'vs prior month' : `vs ${count}-mo avg`);
+  if (!count) return { available: false, label, count, drivers: [], totalDelta: 0 };
+  const now = categoryTotals(forMonth(rows, month, cutoff));
+  const typicalOf = id => history.reduce((sum, row) => sum + (categoryTotals(row.rows).find(cat => cat.id === id)?.cents || 0), 0) / count;
+  const drivers = categories.filter(cat => cat.id !== 'income' && cat.income !== true && !cat.excluded).map(cat => {
+    const current = now.find(row => row.id === cat.id)?.cents || 0, typical = Math.round(typicalOf(cat.id));
+    return { ...cat, current, typical, delta: current - typical };
+  }).filter(cat => Math.max(cat.current, cat.typical) >= 2500 && Math.abs(cat.delta) >= 1000).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 3);
+  const typicalTotal = history.reduce((sum, row) => sum + totals(row.rows).spending, 0) / count;
+  return { available: true, label, count, drivers, totalDelta: Math.round(totals(forMonth(rows, month, cutoff)).spending - typicalTotal) };
+}
+// Trends bars: up to 12 covered months ending at the selected one, all cut at
+// the same day while it is in progress, plus the typical (average prior) level.
+export function monthlySeries(rows, month, today = new Date()) {
+  const cutoff = month === localDateKey(today).slice(0, 7) ? today.getDate() : 31;
+  const bars = [];
+  for (let offset = 11; offset >= 0; offset--) {
+    const target = addMonths(month, -offset);
+    if (offset && !isCovered(rows, target)) continue;
+    bars.push({ month: target, spending: totals(forMonth(rows, target, cutoff)).spending });
+  }
+  const prior = bars.slice(0, -1).filter(bar => bar.spending > 0);
+  return { bars, cutoff, typical: prior.length ? Math.round(prior.reduce((sum, bar) => sum + bar.spending, 0) / prior.length) : null };
 }
 export function applyOwnership(rows, percent = 100) {
   const share = Number.isFinite(percent) ? Math.max(0, Math.min(100, percent)) : 50;
