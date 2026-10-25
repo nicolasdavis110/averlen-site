@@ -39,7 +39,7 @@ export function totals(rows) {
   }, { income: 0, spending: 0, net: 0 });
 }
 export function categoryTotals(rows) {
-  return categories.filter(cat => cat.id !== 'income').map(cat => ({
+  return categories.filter(cat => cat.id !== 'income' && cat.income !== true).map(cat => ({
     ...cat, cents: eligible(rows).filter(tx => !tx.income && tx.category === cat.id).reduce((sum, tx) => sum + tx.cents, 0),
   })).filter(cat => cat.cents > 0).sort((a, b) => b.cents - a.cents);
 }
@@ -61,7 +61,7 @@ export function categoryChanges(rows, month, today = new Date()) {
   if (!coverageStart || coverageStart > `${prior}-01`) return { available: false, prior, cutoff, changes: [] };
   const current = categoryTotals(forMonth(rows, month, cutoff));
   const previous = categoryTotals(forMonth(rows, prior, cutoff));
-  const changes = categories.filter(cat => cat.id !== 'income').map(cat => {
+  const changes = categories.filter(cat => cat.id !== 'income' && cat.income !== true).map(cat => {
     const now = current.find(row => row.id === cat.id)?.cents || 0;
     const before = previous.find(row => row.id === cat.id)?.cents || 0;
     return { ...cat, now, before, delta: now - before };

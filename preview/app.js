@@ -32,16 +32,20 @@ const shortMonth = month => new Date(`${month}-01T12:00:00`).toLocaleDateString(
 const today = new Date();
 const asOf = localDateKey(today);
 const currentMonth = asOf.slice(0, 7);
+const isLivePage = document.documentElement.dataset.mode === 'live';
+const demoCategories = categories.map(category => ({ ...category }));
+let liveConnection = null, liveConfiguration = null;
+let liveMessage = () => 'Could not finish this request. Please try again.';
 const rows = makeDemo(today);
 const wealthAccounts = accounts.map(account => ({ ...account }));
 const wealthHistory = makeWealthHistory(today);
 const defaultRetirement = { age: 35, retirementAge: 65, balanceCents: 0, monthlyCents: 30000, realReturn: 5 };
 const defaultDebt = { balanceCents: 84721, apr: 19.99, paymentCents: 7500, extraCents: 5000, lumpSumCents: 0 };
 const months = [...new Set(rows.map(tx => tx.date.slice(0, 7)))].sort().reverse();
-const state = { route: 'login', session: false, month: currentMonth, query: '', category: '', type: '', historyWeeks: 26, lens: 'household', share: 50, retirement: { ...defaultRetirement }, debt: { ...defaultDebt }, deletedPreview: false, theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' };
+const state = { route: 'login', session: false, liveData: null, phase: 'signed-out', liveError: null, liveDeleted: false, month: currentMonth, query: '', category: '', type: '', historyWeeks: 26, lens: 'household', share: 50, retirement: { ...defaultRetirement }, debt: { ...defaultDebt }, deletedPreview: false, theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' };
 const main = document.querySelector('#main');
 const dialog = document.querySelector('#detail');
-const catFor = id => categories.find(cat => cat.id === id);
+const catFor = id => categories.find(cat => cat.id === id) || { name: 'Uncategorized', color: '#6C6E73', icon: 'bag' };
 const selectedRows = () => forMonth(rows, state.month);
 const announce = message => { document.querySelector('#announcement').textContent = message; };
 const empty = message => `<div class="empty">${esc(message)}</div>`;
@@ -49,18 +53,18 @@ const empty = message => `<div class="empty">${esc(message)}</div>`;
 function catIcon(cat) { return `<span class="category-icon" style="--category-color:${cat.color}">${icon(cat.icon)}</span>`; }
 function txRow(tx, detailed = false) {
   const cat = catFor(tx.category);
-  return `<button class="tx-row" data-tx="${tx.id}" aria-label="${esc(tx.merchant)}, ${money(tx.cents)}, ${esc(cat.name)}, ${dateLabel(tx.date)}">${catIcon(cat)}<span><span class="merchant">${esc(tx.merchant)}</span><span class="tx-meta">${dateLabel(tx.date)} · ${detailed ? 'Sample transaction' : esc(cat.name)}</span></span>${detailed ? `<span class="table-category">${esc(cat.name)}</span>` : ''}<span class="tx-amount ${tx.income ? 'positive' : ''}">${tx.income ? '+' : '−'}${money(tx.cents)}</span></button>`;
+  return `<button class="tx-row" data-tx="${esc(tx.id)}" aria-label="${esc(tx.merchant)}, ${money(tx.cents)}, ${esc(cat.name)}, ${dateLabel(tx.date)}">${catIcon(cat)}<span><span class="merchant">${esc(tx.merchant)}</span><span class="tx-meta">${dateLabel(tx.date)} · ${detailed ? (state.liveData ? (tx.transfer ? 'Transfer · saved transaction' : tx.excluded ? 'Excluded from totals' : 'Saved transaction') : 'Sample transaction') : esc(cat.name)}</span></span>${detailed ? `<span class="table-category">${esc(cat.name)}</span>` : ''}<span class="tx-amount ${tx.income ? 'positive' : ''}">${tx.income ? '+' : '−'}${money(tx.cents)}</span></button>`;
 }
 function categoryList(data, limit = 7) {
   const cats = categoryTotals(data).slice(0, limit);
   const total = totals(data).spending;
   return cats.map(cat => {
     const share = total ? Math.round(cat.cents / total * 100) : 0;
-    return `<button class="category-row" data-category="${cat.id}" style="--category-color:${cat.color}">${catIcon(cat)}<span><span class="category-name">${cat.name}</span><span class="category-track" style="display:block"><span class="category-fill" style="display:block;width:${share}%"></span></span></span><span><span class="category-amount">${money(cat.cents)}</span><span class="category-share" style="display:block">${share}%</span></span></button>`;
+    return `<button class="category-row" data-category="${esc(cat.id)}" style="--category-color:${cat.color}">${catIcon(cat)}<span><span class="category-name">${esc(cat.name)}</span><span class="category-track" style="display:block"><span class="category-fill" style="display:block;width:${share}%"></span></span></span><span><span class="category-amount">${money(cat.cents)}</span><span class="category-share" style="display:block">${share}%</span></span></button>`;
   }).join('') || empty('No sample spending in this month.');
 }
 function header(title, subtitle = '', action = '') {
-  return `<div class="section-heading"><div><h2>${title}</h2>${subtitle ? `<p class="card-subtitle">${subtitle}</p>` : ''}</div>${action}</div>`;
+  return `<div class="section-heading"><div><h2>${esc(title)}</h2>${subtitle ? `<p class="card-subtitle">${esc(subtitle)}</p>` : ''}</div>${action}</div>`;
 }
 function summary(data) {
   const sum = totals(data);
@@ -75,35 +79,37 @@ function paceChart(data) {
   const points = [[0, 158], ...amounts.map((value, i) => [((i + 1) / dayCount) * 540, 158 - value / max * 140])];
   const line = points.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(' ');
   const area = `${line} 540,158 0,158`;
-  return `<svg class="chart" viewBox="0 0 540 180" role="img" aria-label="Cumulative sample spending: ${money(cumulative)} through day ${dayCount}"><defs><linearGradient id="pace-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#5FAF87" stop-opacity=".2"/><stop offset="100%" stop-color="#5FAF87" stop-opacity="0"/></linearGradient></defs>${[18, 88, 158].map(y => `<line class="gridline" x1="0" x2="540" y1="${y}" y2="${y}"/>`).join('')}<polygon points="${area}" fill="url(#pace-fill)"/><polyline points="${line}" class="spending-line"/><circle cx="540" cy="${points.at(-1)[1]}" r="4" fill="var(--green)"/></svg><div class="chart-axis"><span>${shortMonth(state.month)} 1</span><span>${shortMonth(state.month)} ${dayCount}</span></div>`;
+  return `<svg class="chart" viewBox="0 0 540 180" role="img" aria-label="Cumulative ${state.liveData ? '' : 'sample '}spending: ${money(cumulative)} through day ${dayCount}"><defs><linearGradient id="pace-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#5FAF87" stop-opacity=".2"/><stop offset="100%" stop-color="#5FAF87" stop-opacity="0"/></linearGradient></defs>${[18, 88, 158].map(y => `<line class="gridline" x1="0" x2="540" y1="${y}" y2="${y}"/>`).join('')}<polygon points="${area}" fill="url(#pace-fill)"/><polyline points="${line}" class="spending-line"/><circle cx="540" cy="${points.at(-1)[1]}" r="4" fill="var(--green)"/></svg><div class="chart-axis"><span>${shortMonth(state.month)} 1</span><span>${shortMonth(state.month)} ${dayCount}</span></div>`;
 }
 function home() {
+  if (state.liveData && !rows.length) { main.innerHTML = '<section class="card account-gate"><h2>No saved transactions yet</h2><p class="note">Open the iPhone app and let it sync. Then reload your saved records here.</p><button class="button" data-action="reload-live">Reload saved records</button></section>'; return; }
   const data = selectedRows();
   const sum = totals(data);
   const leading = categoryTotals(data)[0];
-  main.innerHTML = `<p class="intro">Your month, at a glance. A little room to see the bigger picture.</p><div class="grid"><div class="stack"><section class="card hero"><div class="overline">${monthLabel(state.month)} · Spending</div><div class="hero-number">${money(sum.spending)}</div><p class="subtle">${data.filter(tx => !tx.income).length} sample purchases${state.month === currentMonth ? ` through ${dateLabel(asOf)}` : ''}</p><div class="stats"><div><div class="stat-label">${icon('arrowIn')}Income</div><div class="stat-value">${money(sum.income)}</div></div><div><div class="stat-label">${icon('trends')}Net cash flow</div><div class="stat-value positive">${money(sum.net)}</div></div></div></section><section class="card">${header('Monthly pace', 'Cumulative spending in the sample dataset')}<div class="chart-summary"><strong>${money(sum.spending)}</strong><span>spent so far</span></div>${paceChart(data)}</section></div><div class="stack"><section class="card">${header('Spending by category', 'Follow the numbers into your activity')}<div>${categoryList(data)}</div></section><section class="card insight"><span class="insight-icon">${icon('spark')}</span><div><h3>${leading ? `${leading.name} leads this month` : 'A little space for insight'}</h3><p>${leading ? `Your largest sample category is ${money(leading.cents)}. See the individual purchases for a closer look.` : 'Choose a month with sample spending to explore its categories.'}</p>${leading ? `<button class="text-button" data-category="${leading.id}">Explore ${leading.name.toLowerCase()} →</button>` : ''}</div></section></div><section class="card full">${header('Recent activity', 'The details behind your month', '<a class="text-button" href="#activity">View all activity →</a>')}<div class="transaction-list">${data.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5).map(tx => txRow(tx)).join('') || empty('No sample transactions in this month.')}</div></section></div>`;
+  main.innerHTML = `<p class="intro">Your month, at a glance. A little room to see the bigger picture.</p><div class="grid"><div class="stack"><section class="card hero"><div class="overline">${monthLabel(state.month)} · Spending</div><div class="hero-number">${money(sum.spending)}</div><p class="subtle">${data.filter(tx => !tx.income).length} ${state.liveData ? '' : 'sample '}purchase${data.filter(tx => !tx.income).length === 1 ? '' : 's'}${state.month === currentMonth ? ` through ${dateLabel(asOf)}` : ''}</p><div class="stats"><div><div class="stat-label">${icon('arrowIn')}Income</div><div class="stat-value">${money(sum.income)}</div></div><div><div class="stat-label">${icon('trends')}Net cash flow</div><div class="stat-value ${sum.net >= 0 ? 'positive' : ''}">${money(sum.net)}</div></div></div></section><section class="card">${header('Monthly pace', state.liveData ? 'Cumulative spending in your saved records' : 'Cumulative spending in the sample dataset')}<div class="chart-summary"><strong>${money(sum.spending)}</strong><span>spent so far</span></div>${paceChart(data)}</section></div><div class="stack"><section class="card">${header('Spending by category', 'Follow the numbers into your activity')}<div>${categoryList(data)}</div></section><section class="card insight"><span class="insight-icon">${icon('spark')}</span><div><h3>${leading ? `${esc(leading.name)} leads this month` : 'A little space for insight'}</h3><p>${leading ? `Your largest ${state.liveData ? '' : 'sample '}category is ${money(leading.cents)}. See the individual purchases for a closer look.` : 'Choose a month with sample spending to explore its categories.'}</p>${leading ? `<button class="text-button" data-category="${esc(leading.id)}">Explore ${esc(leading.name.toLowerCase())} →</button>` : ''}</div></section></div><section class="card full">${header('Recent activity', 'The details behind your month', '<a class="text-button" href="#activity">View all activity →</a>')}<div class="transaction-list">${data.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5).map(tx => txRow(tx)).join('') || empty('No sample transactions in this month.')}</div></section></div>`;
 }
 function activity() {
-  main.innerHTML = `<p class="intro">Explore your transactions, follow a category, or find a particular purchase.</p>${summary(selectedRows())}<div class="filters"><div class="search-wrap">${icon('search')}<label class="sr-only" for="search">Search transactions</label><input id="search" type="search" placeholder="Search transactions…" value="${esc(state.query)}" autocomplete="off"></div><label class="sr-only" for="category-filter">Category</label><select id="category-filter"><option value="">All categories</option>${categories.map(cat => `<option value="${cat.id}" ${state.category === cat.id ? 'selected' : ''}>${cat.name}</option>`).join('')}</select><label class="sr-only" for="type-filter">Transaction type</label><select id="type-filter"><option value="">All activity</option><option value="spending" ${state.type === 'spending' ? 'selected' : ''}>Spending</option><option value="income" ${state.type === 'income' ? 'selected' : ''}>Income</option></select></div><section class="card activity"><p class="result-count" id="result-count" role="status"></p><div class="table-header"><span>Transaction</span><span>Category</span><span class="right">Amount</span></div><div id="activity-rows"></div></section>`;
+  main.innerHTML = `<p class="intro">Explore your transactions, follow a category, or find a particular purchase.</p>${summary(selectedRows())}<div class="filters"><div class="search-wrap">${icon('search')}<label class="sr-only" for="search">Search transactions</label><input id="search" type="search" placeholder="Search transactions…" value="${esc(state.query)}" autocomplete="off"></div><label class="sr-only" for="category-filter">Category</label><select id="category-filter"><option value="">All categories</option>${categories.map(cat => `<option value="${esc(cat.id)}" ${state.category === cat.id ? 'selected' : ''}>${esc(cat.name)}</option>`).join('')}</select><label class="sr-only" for="type-filter">Transaction type</label><select id="type-filter"><option value="">All activity</option><option value="spending" ${state.type === 'spending' ? 'selected' : ''}>Spending</option><option value="income" ${state.type === 'income' ? 'selected' : ''}>Income</option></select></div><section class="card activity"><p class="result-count" id="result-count" role="status"></p><div class="table-header"><span>Transaction</span><span>Category</span><span class="right">Amount</span></div><div id="activity-rows"></div></section>`;
   document.querySelector('#search').addEventListener('input', event => { state.query = event.target.value; activityRows(); });
   document.querySelector('#category-filter').addEventListener('change', event => { state.category = event.target.value; activityRows(); });
   document.querySelector('#type-filter').addEventListener('change', event => { state.type = event.target.value; activityRows(); });
   activityRows();
 }
 function activityRows() {
-  const data = selectedRows().filter(tx => (!state.category || tx.category === state.category) && (!state.type || tx.income === (state.type === 'income')) && `${tx.merchant} ${catFor(tx.category).name}`.toLowerCase().includes(state.query.toLowerCase().trim())).sort((a, b) => b.date.localeCompare(a.date));
-  document.querySelector('#result-count').textContent = `${data.length} sample transaction${data.length === 1 ? '' : 's'} · ${monthLabel(state.month)}`;
+  const data = rows.filter(tx => tx.date.slice(0, 7) === state.month && (!state.category || tx.category === state.category) && (!state.type || (!tx.transfer && !tx.excluded && tx.income === (state.type === 'income'))) && `${tx.merchant} ${catFor(tx.category).name}`.toLowerCase().includes(state.query.toLowerCase().trim())).sort((a, b) => b.date.localeCompare(a.date));
+  document.querySelector('#result-count').textContent = `${data.length} ${state.liveData ? '' : 'sample '}transaction${data.length === 1 ? '' : 's'} · ${monthLabel(state.month)}`;
   document.querySelector('#activity-rows').innerHTML = data.map(tx => txRow(tx, true)).join('') || `${empty('No transactions match these filters.')}<button class="text-button" id="clear-filters">Clear filters</button>`;
   document.querySelector('#clear-filters')?.addEventListener('click', () => { state.query = ''; state.category = ''; state.type = ''; activity(); });
 }
 function trends() {
-  const comparison = categoryChanges(rows, state.month, today);
+  const trendRows = rows.filter(row => !row.trendExcluded);
+  const comparison = categoryChanges(trendRows, state.month, today);
   const throughDay = state.month === currentMonth ? today.getDate() : 31;
   const coverageStart = rows.map(row => row.date).sort()[0];
-  const monthly = months.filter(month => month <= state.month && `${month}-01` >= coverageStart).reverse().map(month => ({ month, ...totals(forMonth(rows, month, throughDay)) }));
+  const monthly = months.filter(month => month <= state.month && `${month}-01` >= coverageStart).reverse().map(month => ({ month, ...totals(forMonth(trendRows, month, throughDay)) }));
   const max = Math.max(...monthly.map(month => month.spending), 1);
-  const changeRows = comparison.changes.slice(0, 5).map(cat => `<button class="change-row" data-category="${cat.id}">${catIcon(cat)}<span><strong>${cat.name}</strong><small>${money(cat.before)} → ${money(cat.now)}</small></span><span class="change-amount ${cat.delta < 0 ? 'positive' : ''}">${cat.delta > 0 ? '+' : cat.delta < 0 ? '−' : ''}${money(Math.abs(cat.delta))}<small>${cat.delta > 0 ? 'more' : cat.delta < 0 ? 'less' : 'unchanged'}</small></span></button>`).join('');
-  main.innerHTML = `<p class="intro">What changed, what drove it, and how your months fit together.</p>${summary(selectedRows())}<div class="grid"><section class="card">${header('Spending over time', state.month === currentMonth ? `Each month through day ${throughDay}` : 'Spending by completed month')}<div class="bars">${monthly.map(month => `<div class="bar-group"><span class="bar-value">${money(month.spending)}</span><button class="bar-button ${month.month === state.month ? 'selected' : ''}" data-month="${month.month}" style="--bar-height:${Math.max(4, month.spending / max * 70)}%" aria-label="Explore ${monthLabel(month.month)}, ${money(month.spending)} spending"></button><span class="bar-month">${shortMonth(month.month)}</span></div>`).join('')}</div><p class="legend">Only months covered from day 1 are shown. Current-month comparisons stop at the same day. Select a bar to explore.</p></section><section class="card">${header('What changed', comparison.available ? `${monthLabel(state.month)} vs. ${shortMonth(comparison.prior)}${state.month === currentMonth ? ` · through day ${throughDay}` : ''}` : 'A little more history is needed')}${comparison.available ? changeRows || empty('No category changes in this period.') : empty('The prior month is not fully covered by the sample. Choose a later month for a fair comparison.')}</section><section class="card report-card full"><div class="insight-icon">${icon('activity')}</div><div><h2>Your monthly report</h2><p class="subtle">See income, spending, and the purchases behind ${monthLabel(state.month)} in one place.</p></div><button class="button" data-action="monthly-report">Open report →</button></section></div>`;
+  const changeRows = comparison.changes.slice(0, 5).map(cat => `<button class="change-row" data-category="${esc(cat.id)}">${catIcon(cat)}<span><strong>${esc(cat.name)}</strong><small>${money(cat.before)} → ${money(cat.now)}</small></span><span class="change-amount ${cat.delta < 0 ? 'positive' : ''}">${cat.delta > 0 ? '+' : cat.delta < 0 ? '−' : ''}${money(Math.abs(cat.delta))}<small>${cat.delta > 0 ? 'more' : cat.delta < 0 ? 'less' : 'unchanged'}</small></span></button>`).join('');
+  main.innerHTML = `<p class="intro">What changed, what drove it, and how your months fit together.</p>${summary(forMonth(trendRows, state.month))}<div class="grid"><section class="card">${header('Spending over time', state.month === currentMonth ? `Each month through day ${throughDay}` : 'Spending by completed month')}<div class="bars">${monthly.map(month => `<div class="bar-group"><span class="bar-value">${money(month.spending)}</span><button class="bar-button ${month.month === state.month ? 'selected' : ''}" data-month="${month.month}" style="--bar-height:${Math.max(4, month.spending / max * 70)}%" aria-label="Explore ${monthLabel(month.month)}, ${money(month.spending)} spending"></button><span class="bar-month">${shortMonth(month.month)}</span></div>`).join('')}</div><p class="legend">Only months covered from day 1 are shown. Current-month comparisons stop at the same day. Select a bar to explore.</p></section><section class="card">${header('What changed', comparison.available ? `${monthLabel(state.month)} vs. ${shortMonth(comparison.prior)}${state.month === currentMonth ? ` · through day ${throughDay}` : ''}` : 'A little more history is needed')}${comparison.available ? changeRows || empty('No category changes in this period.') : empty('The prior month is not fully covered by the saved history. Choose a later month for a fair comparison.')}</section><section class="card report-card full"><div class="insight-icon">${icon('activity')}</div><div><h2>Your monthly report</h2><p class="subtle">See income, spending, and the purchases behind ${monthLabel(state.month)} in one place.</p></div><button class="button" data-action="monthly-report">Open report →</button></section></div>`;
 }
 function historyChart(points) {
   const min = Math.min(...points.map(point => point.cents));
@@ -113,6 +119,7 @@ function historyChart(points) {
   return `<svg class="chart history-chart" viewBox="0 0 600 180" role="img" aria-label="Illustrative net worth history from ${money(points[0].cents)} to ${money(points.at(-1).cents)}">${[28, 93, 158].map(y => `<line class="gridline" x1="0" x2="600" y1="${y}" y2="${y}"/>`).join('')}<polyline class="spending-line" points="${coords.map(point => point.join(',')).join(' ')}"/><circle cx="600" cy="${coords.at(-1)[1]}" r="4" fill="var(--green)"/></svg><div class="chart-axis"><span>${dateLabel(points[0].date)}</span><span>${dateLabel(points.at(-1).date)}</span></div>`;
 }
 function wealth() {
+  if (state.liveData) { savedWealth(); return; }
   const share = state.lens === 'mine' ? state.share : 100;
   const displayAccounts = applyOwnership(wealthAccounts, share);
   const sum = wealthTotals(displayAccounts);
@@ -136,12 +143,18 @@ function resetSample() {
   state.lens = 'household'; state.share = 50; state.query = ''; state.category = ''; state.type = '';
 }
 function login() {
+  if (isLivePage) { liveLogin(); return; }
   main.innerHTML = `<div class="auth-shell"><section class="auth-story"><a href="#login" class="brand"><img src="../averlen-logo.png" width="40" height="40" alt=""><span>Averlen</span></a><span class="overline">YOUR SPACE FOR CLARITY</span><h2>A clearer picture.<br>A little more possibility.</h2><p>See where your money goes, share the bigger picture, and make room for what comes next.</p><div class="auth-illustration" aria-hidden="true"><span class="overline">THE BIGGER PICTURE</span><div class="illustration-number">Room to move forward.</div><div class="illustration-bars"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><span class="subtle">Spend with awareness. Plan with perspective.</span></div></section><section class="auth-form card"><span class="overline">WELCOME TO AVERLEN</span><h1>Welcome back.</h1><p class="subtle">Your financial picture, on a bigger screen.</p>${state.deletedPreview ? '<p class="success-note" role="status">Deletion preview complete. The sample session was cleared. No real account or bank connection was changed.</p>' : ''}<div class="preview-note">Sign-in design preview. Live authentication is not connected; please use the sample account below.</div><button class="button apple-button" disabled>Continue with Apple</button><div class="auth-divider">or use email</div><label for="login-email">Email</label><input id="login-email" type="email" placeholder="you@example.com" disabled autocomplete="off"><label for="login-password">Password</label><input id="login-password" type="password" placeholder="Your password" disabled autocomplete="off"><div class="login-assistance"><button class="text-button" data-action="reset-password-info">Forgot password?</button></div><button class="button" disabled>Sign in</button><button class="button primary" data-action="start-demo">Explore sample account →</button><p class="note">Already use Averlen on iPhone? The live web version will use your existing account. No additional account is needed.</p><div class="auth-links"><a href="#account">Saved data & account</a><a href="https://candorfinance.app/support.html">Support</a><button class="text-button" data-theme-action>Appearance</button></div></section></div>`;
 }
 function settings() {
+  if (state.liveData) { liveSettings(); return; }
   main.innerHTML = `<p class="intro">Your account, your data, and your preferences.</p><div class="grid"><section class="card">${header('Account', 'Sample account · signed in for this preview')}<button class="settings-row" data-action="manage-account"><span><strong>Manage account</strong><small>Saved data, subscription, and account deletion</small></span><span>→</span></button><button class="settings-row" data-action="logout"><span><strong>Sign out</strong><small>Clear this sample session and return to sign-in</small></span><span>→</span></button></section><section class="card">${header('Appearance & preview')}<button class="settings-row" data-theme-action><span><strong>Appearance</strong><small>Switch between light and dark</small></span><span>→</span></button><button class="settings-row" data-action="reset-sample"><span><strong>Reset sample changes</strong><small>Restore the original transactions, accounts, and planning inputs</small></span><span>↺</span></button></section><section class="card insight full"><span class="insight-icon">${icon('spark')}</span><div><h3>Sample data, throughout</h3><p>Login, planning, manual accounts, and deletion can be explored here. Nothing connects to a real bank or changes a real account. Sample edits reset on reload.</p></div></section></div>`;
 }
 function account() {
+  if (state.liveData) { liveAccount(); return; }
+  if (isLivePage) {
+    main.innerHTML = '<section class="card account-gate"><h2>Saved data & account</h2><p class="note">Sign in to view saved records, export your information, or delete your Averlen account. These controls remain available without an active plan.</p><div class="button-row"><a class="button primary" href="#login">Sign in to your account</a><a class="button" href="../preview/">Explore sample preview</a></div></section>'; return;
+  }
   if (!state.session) {
     main.innerHTML = `<section class="card account-gate">${header('Saved data & account')}<p class="subtle">Sign in to view saved records, export your data, or delete your Averlen account. These options should remain available when a subscription expires.</p><p class="note">Live sign-in is not connected in this preview. Explore the sample account to try the account-management flow.</p><div class="button-row"><button class="button primary" data-action="start-demo-account">Explore sample account</button><a class="button" href="#login">Back to sign-in</a></div></section>`;
     return;
@@ -152,11 +165,15 @@ function render() {
   const titles = { login: 'Sign in', home: 'Home', activity: 'Activity', trends: 'Trends', wealth: 'Wealth', settings: 'Settings', account: 'Your account' };
   document.querySelector('.layout').classList.toggle('auth-mode', state.route === 'login');
   document.querySelector('#page-title').textContent = titles[state.route];
-  document.title = `${titles[state.route]} · Averlen web preview`;
+  document.title = `${titles[state.route]} · Averlen${isLivePage ? '' : ' web preview'}`;
   document.querySelector('#navigation').innerHTML = ['home', 'activity', 'trends', 'wealth'].map(key => `<a href="#${key}" ${state.route === key ? 'aria-current="page"' : ''}>${icon(key)}<span>${titles[key]}</span></a>`).join('');
   document.querySelector('#settings-link').innerHTML = `${icon('settings')}Settings`;
   document.querySelector('#account-settings').innerHTML = icon('settings');
   document.querySelector('#month').hidden = ['login', 'wealth', 'settings', 'account'].includes(state.route);
+  if (isLivePage && ['loading', 'error'].includes(state.phase)) { liveStatus(); return; }
+  if (state.liveData?.recordsUnavailable && ['home', 'activity', 'trends', 'wealth'].includes(state.route)) {
+    main.innerHTML = '<section class="card account-gate"><h2>Your saved records could not be loaded</h2><p class="note">Your account controls are still available. Try reloading your records, or continue to account management.</p><div class="button-row"><button class="button primary" data-action="reload-live">Reload records</button><button class="button" data-action="manage-account">Manage account</button></div></section>'; return;
+  }
   ({ login, home, activity, trends, wealth, settings, account }[state.route])();
 }
 function setTheme() {
@@ -172,6 +189,7 @@ function openDialog(title, body) {
   else document.querySelector('#close-dialog').focus();
 }
 function openAbout() {
+  if (isLivePage) { openDialog('Averlen on the web', '<p class="subtle">Your saved iPhone records are available here using your existing account. This first web connection is read-only. Bank refresh, editing, and planning changes remain in the iPhone app.</p><p class="note">Account deletion and data export use the same server permissions as the app and require you to confirm your identity.</p>'); return; }
   openDialog('Averlen for the web', `<p class="subtle">Explore Home, Activity, Trends, Wealth, and account management using synthetic data. Sample changes reset on reload.</p><p class="note">Live sign-in, bank access, and actual account deletion are not connected. The login screen and deletion sequence demonstrate those flows without asking for real credentials.</p><div class="button-row">${state.session ? '<a href="#settings" class="button">Preview settings</a><a href="#account" class="button">Account management</a>' : '<button class="button primary" data-action="start-demo">Explore sample account</button>'}</div>`);
 }
 
@@ -232,6 +250,7 @@ function showOwnership() {
   document.querySelector('#ownership-form').addEventListener('submit', event => { event.preventDefault(); state.share = Number(document.querySelector('#ownership-share').value); state.lens = 'mine'; dialog.close(); wealth(); });
 }
 function showDeletion() {
+  if (state.liveData) { liveAccountAction('delete'); return; }
   const policy = deletionPolicy({ owner: true, memberCount: 1, freshIdentity: false });
   if (policy.reason === 'transfer_ownership') { openDialog('Transfer ownership first', '<p class="subtle">A shared-household owner must transfer ownership to another member before deleting their own account. Their partner’s account and data must remain intact.</p>'); return; }
   openDialog('Delete your Averlen account?', `<p class="subtle">In the live service, deletion permanently removes your account and its data and disconnects your bank access. A partner’s account must remain intact.</p><div class="preview-note">This is a sample-only walkthrough. No real account, stored financial record, or bank connection will be deleted.</div><p class="note">Deleting your account does not cancel an App Store subscription. <a href="https://apps.apple.com/account/subscriptions" target="_blank" rel="noopener">Manage it with Apple</a> to stop future charges.</p><div class="button-row"><button class="button" id="cancel-deletion">Keep account</button><button class="button danger" id="reauth-preview">Continue deletion preview</button></div>`);
@@ -250,18 +269,135 @@ function showDeletion() {
   });
 }
 function exportSample() {
+  if (state.liveData) { liveAccountAction('export'); return; }
   const content = JSON.stringify({ sample_data_only: true, transactions: rows, accounts: wealthAccounts }, null, 2);
   const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
   const link = document.createElement('a'); link.href = url; link.download = 'averlen-sample-data.json'; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000); announce('Sample data exported.');
 }
 function navigate(destination) { if (dialog.open) dialog.close(); if (location.hash === `#${destination}`) route(); else location.hash = destination; }
+function showMonthlyReport() {
+  const data = forMonth(rows.filter(row => !row.trendExcluded), state.month);
+  openDialog(`${monthLabel(state.month)} report`, `${summary(data)}<p class="subtle">${state.month === currentMonth ? `Month to date through ${dateLabel(asOf)}.` : 'Completed month.'} ${state.liveData ? 'Saved records; your Trends exclusions are applied.' : 'Sample transactions only.'}</p><div class="report-categories">${categoryList(data)}</div>`);
+}
+
+function clearLiveRecords() {
+  rows.length = 0; categories.length = 0; wealthAccounts.length = 0; wealthHistory.length = 0; months.length = 0;
+  state.liveData = null; state.session = false; state.query = ''; state.category = ''; state.type = '';
+  state.retirement = { ...defaultRetirement }; state.debt = { ...defaultDebt }; state.lens = 'household'; state.share = 50;
+  if (dialog.open) dialog.close();
+  document.querySelector('#dialog-body').replaceChildren();
+}
+function updateMonths() {
+  document.querySelector('#month').innerHTML = months.map(month => `<option value="${month}">${monthLabel(month)}</option>`).join('');
+  document.querySelector('#month').value = state.month;
+}
+export function attachLiveConnection(configuration, factory, message) {
+  liveConfiguration = configuration; liveMessage = message;
+  clearLiveRecords();
+  if (configuration.enabled && factory) {
+    liveConnection = factory(event => {
+      clearLiveRecords(); state.phase = event.phase; state.liveError = event.error || null;
+      if (event.phase === 'deleted') state.liveDeleted = true;
+      if (event.phase === 'deletion-unconfirmed') state.liveDeleted = 'unconfirmed';
+      if (event.phase === 'ready') {
+        const data = event.data;
+        state.liveData = data; state.session = true;
+        rows.push(...data.transactions); categories.push(...data.categories); wealthAccounts.push(...data.accounts); wealthHistory.push(...data.history);
+        months.push(...new Set([currentMonth, ...rows.map(row => row.date.slice(0, 7))])); months.sort().reverse();
+        if (!months.includes(state.month)) state.month = months[0];
+        document.querySelector('.profile strong').textContent = data.profile.user.display_name || 'Your Averlen account';
+        document.querySelector('.profile small').textContent = data.profile.household.name || 'Household';
+      } else {
+        document.querySelector('.profile strong').textContent = 'Averlen'; document.querySelector('.profile small').textContent = 'Your account';
+      }
+      updateMonths();
+      document.querySelector('.preview-banner>span').textContent = state.session ? 'Saved records · Read-only web access' : 'Averlen for the web';
+      if (['deleted', 'deletion-unconfirmed'].includes(event.phase) || (event.phase === 'signed-out' && state.liveDeleted)) navigate('login');
+      else if (state.session && ['', '#login'].includes(location.hash)) navigate('home');
+      else route();
+    });
+  }
+  render();
+}
+function liveStatus() {
+  if (state.phase === 'loading') {
+    main.innerHTML = '<section class="card account-gate" role="status"><h2>Opening your Averlen account…</h2><p class="note">Checking your household and loading saved records.</p></section>';
+    return;
+  }
+  main.innerHTML = `<section class="card account-gate"><h2>We couldn’t open your saved records</h2><p class="note">${esc(liveMessage(state.liveError))}</p><div class="button-row"><button class="button primary" data-action="reload-live">Try again</button><button class="button" data-action="logout">Sign out</button></div></section>`;
+}
+function liveLogin() {
+  const available = Boolean(liveConfiguration?.enabled && liveConnection);
+  const appleAvailable = available && liveConfiguration.appleEnabled;
+  main.innerHTML = `<div class="auth-shell"><section class="auth-story"><a href="#login" class="brand"><img src="../averlen-logo.png" width="40" height="40" alt=""><span>Averlen</span></a><span class="overline">YOUR SPACE FOR CLARITY</span><h2>Your picture.<br>Wherever you are.</h2><p>Open your saved Averlen records using the account you already use on iPhone.</p></section><section class="auth-form card"><span class="overline">WELCOME TO AVERLEN</span><h1>Welcome back.</h1><p class="subtle">Sign in with your existing Averlen account.</p>${state.liveDeleted ? `<p class="success-note" role="status">${state.liveDeleted === 'unconfirmed' ? 'We could not confirm whether deletion finished. Your session was cleared. Sign in again to check, or contact support. The website will not retry deletion automatically.' : 'Your account was deleted. Bank disconnection and remaining provider cleanup are being processed.'}</p>` : ''}${!available ? '<div class="preview-note">Web sign-in is being prepared. The sample preview is available while the secure connection is completed.</div>' : '<p class="note">This first web version shows saved records. Editing and bank refresh remain in the iPhone app.</p>'}<button class="button apple-button" id="apple-signin" ${appleAvailable ? '' : 'disabled'}>Continue with Apple</button>${!appleAvailable && available ? '<p class="note">Apple web sign-in is still being configured. Use the iPhone app if your account uses Apple.</p>' : ''}<div class="auth-divider">or use email</div><form id="live-login-form"><div class="form-field"><label for="live-email">Email</label><input id="live-email" type="email" autocomplete="username" required ${available ? '' : 'disabled'}></div><div class="form-field"><label for="live-password">Password</label><input id="live-password" type="password" autocomplete="current-password" required ${available ? '' : 'disabled'}></div><p id="login-error" class="form-error" role="alert"></p><button type="submit" class="button primary" ${available ? '' : 'disabled'}>Sign in</button><button type="button" class="text-button" id="live-reset-password" ${available ? '' : 'disabled'}>Forgot password?</button></form><a href="../preview/" class="button">Explore sample preview →</a><p class="note">Use your original account and sign-in method. The website will not create or link accounts automatically.</p><div class="auth-links"><a href="#account">Saved data & account</a><a href="https://candorfinance.app/support.html">Support</a><button class="text-button" data-theme-action>Appearance</button></div></section></div>`;
+  document.querySelector('#live-login-form').addEventListener('submit', async event => {
+    event.preventDefault(); if (!available) return;
+    const form = event.currentTarget, email = form.querySelector('#live-email').value.trim(), passwordField = form.querySelector('#live-password');
+    const password = passwordField.value; passwordField.value = ''; const button = form.querySelector('[type=submit]'); button.disabled = true;
+    try { state.liveDeleted = false; await liveConnection.signIn(email, password); }
+    catch (error) { if (form.isConnected) form.querySelector('#login-error').textContent = liveMessage(error); }
+    finally { button.disabled = false; }
+  });
+  document.querySelector('#apple-signin').addEventListener('click', async event => {
+    if (!appleAvailable) return; const button = event.currentTarget; button.disabled = true;
+    try { state.liveDeleted = false; await liveConnection.signInApple(); } catch (error) { const target = document.querySelector('#login-error'); if (target) target.textContent = liveMessage(error); } finally { button.disabled = false; }
+  });
+  document.querySelector('#live-reset-password').addEventListener('click', async () => {
+    const email = document.querySelector('#live-email'); if (!email.reportValidity() || !email.value) { email.focus(); return; }
+    try { await liveConnection.resetPassword(email.value.trim()); const target = document.querySelector('#login-error'); if (target) target.textContent = 'If a password account exists for that email, a reset link will be sent.'; }
+    catch (error) { const target = document.querySelector('#login-error'); if (target) target.textContent = liveMessage(error); }
+  });
+}
+function liveSettings() {
+  main.innerHTML = `<p class="intro">Your account and saved information, connected to the iPhone app.</p><div class="grid"><section class="card">${header('Account', state.liveData.profile.user.display_name || 'Your Averlen account')}<button class="settings-row" data-action="manage-account"><span><strong>Manage account</strong><small>Export your data, manage your plan, or delete your account</small></span><span>→</span></button><button class="settings-row" data-action="logout"><span><strong>Sign out</strong><small>Clear financial information from this browser session</small></span><span>→</span></button></section><section class="card">${header('Saved records')}<button class="settings-row" data-action="reload-live"><span><strong>Reload saved records</strong><small>Read the latest records synced from the iPhone app</small></span><span>↻</span></button><button class="settings-row" data-theme-action><span><strong>Appearance</strong><small>Switch light and dark</small></span><span>→</span></button></section></div>`;
+}
+function liveAccount() {
+  const data = state.liveData, profile = data.profile;
+  const blocked = profile.household.is_owner && profile.members.length > 1;
+  main.innerHTML = `<p class="intro">Manage your Averlen account and saved records.</p><div class="grid"><section class="card">${header('Your account')}<div class="definition"><span>Name</span><strong>${esc(profile.user.display_name || 'Your account')}</strong></div><div class="definition"><span>Email</span><strong class="account-email">${esc(profile.user.email || 'Apple account')}</strong></div><div class="definition"><span>Household</span><strong>${esc(profile.household.name || 'Your household')}</strong></div><div class="definition"><span>Role</span><strong>${profile.household.is_owner ? 'Owner' : 'Member'} · ${profile.members.length} member${profile.members.length === 1 ? '' : 's'}</strong></div><div class="button-row"><button class="button" data-action="export-sample">Export my data</button><button class="button" data-action="logout">Sign out</button></div></section><section class="card">${header('Plan & access')}<p class="subtle">${data.billing.hasAccess ? 'Your household currently has access through its Averlen plan.' : 'An active plan was not confirmed. Your saved records, export, and account deletion remain available.'}</p><p class="note">This first web version is read-only. Manage or restore purchases in the iPhone app. Deleting your account does not cancel an App Store subscription.</p><div class="button-row"><a class="button" href="https://apps.apple.com/account/subscriptions" target="_blank" rel="noopener">Manage Apple subscription ↗</a></div></section><section class="card danger-zone full">${header('Delete account')}<p class="subtle">${blocked ? 'You own a shared household. Transfer ownership to your partner in the iPhone app before deleting your account. Their account and data must stay available.' : 'Your account and its Averlen data will be permanently deleted. Your identity must be confirmed first. Bank disconnection is queued by the server as part of deletion.'}</p><div class="button-row"><button class="button danger" data-action="delete-account" ${blocked ? 'disabled' : ''}>${blocked ? 'Transfer ownership first' : 'Delete my account'}</button></div></section></div>`;
+}
+function savedWealth() {
+  const latest = wealthHistory.at(-1);
+  const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - state.historyWeeks * 7, 12);
+  const history = wealthHistory.filter(point => point.date >= localDateKey(cutoff));
+  main.innerHTML = `<p class="intro">Your saved household picture, as last synced from the iPhone app.</p><div class="grid"><section class="card hero">${latest ? `<div class="overline">Last saved net worth · ${dateLabel(latest.date)}</div><div class="hero-number">${money(latest.cents)}</div><div class="stats"><div><div class="stat-label">Assets</div><div class="stat-value">${money(latest.assets)}</div></div><div><div class="stat-label">Liabilities</div><div class="stat-value">${money(latest.liabilities)}</div></div></div>` : '<h2>No saved net worth snapshot yet</h2><p class="note">Open Wealth in the iPhone app and let it sync to build your saved history.</p>'}</section><section class="card">${header('Saved balances')}<p class="subtle">Net worth snapshots include saved bank and manual balances. This page does not refresh banks or create a new snapshot.</p><p class="note">Retirement plans, debt tracking, and account editing remain in the iPhone app in this first connected web version.</p><button class="button" data-action="reload-live">Reload saved records</button></section><section class="card full">${header('Net worth history', 'Full household totals, including saved manual balances', `<div class="segmented">${[[4, '1M'], [13, '3M'], [26, '6M']].map(([weeks, label]) => `<button data-history="${weeks}" aria-pressed="${state.historyWeeks === weeks}">${label}</button>`).join('')}</div>`)}${history.length >= 2 ? historyChart(history) : empty('Not enough saved snapshots in this period yet.')}</section><section class="card full">${header('Manual accounts', 'Stored values from the iPhone app')}${wealthAccounts.map(account => `<div class="balance-row"><span class="category-icon" style="--category-color:var(--green)">${icon('bank')}</span><span><strong>${esc(account.name)}</strong><small>${account.asset ? 'Asset' : 'Liability'}</small></span><strong>${money(account.cents)}</strong></div>`).join('') || empty('No saved manual accounts.')}</section></div>`;
+}
+async function liveSignOut() {
+  try { await liveConnection?.signOut(); navigate('login'); }
+  catch (error) { state.phase = 'error'; state.liveError = { code: error.code }; render(); }
+}
+function liveAccountAction(kind) {
+  const profile = state.liveData?.profile; if (!profile || !liveConnection) return;
+  if (kind === 'delete' && profile.household.is_owner && profile.members.length > 1) { openDialog('Transfer ownership first', '<p class="subtle">Transfer household ownership in the iPhone app before deleting your account.</p>'); return; }
+  const usesPassword = liveConnection.provider() === 'password';
+  openDialog(kind === 'delete' ? 'Permanently delete your account?' : 'Export your account data', `<p class="subtle">${esc(profile.user.email || profile.user.display_name || 'Your Averlen account')}</p><p class="note">${kind === 'delete' ? 'This permanently removes your Averlen account and its data. Bank access is disconnected through server cleanup. Your partner’s account must remain available. Deleting does not cancel an App Store subscription.' : 'Download your server-filtered records. Shared-household access does not include your partner’s private history.'}</p><form id="live-account-action">${usesPassword ? '<div class="form-field"><label for="confirm-password">Confirm your Averlen password</label><input id="confirm-password" type="password" autocomplete="current-password" required></div>' : '<p class="note">Apple will ask you to confirm your identity.</p>'}${kind === 'delete' ? '<div class="form-field"><label for="confirm-delete">Type DELETE to confirm</label><input id="confirm-delete" autocomplete="off" spellcheck="false" required pattern="DELETE"></div>' : ''}<p id="account-action-error" role="alert" class="form-error"></p><div class="button-row"><button type="submit" class="button ${kind === 'delete' ? 'danger' : 'primary'}">${kind === 'delete' ? 'Delete my account permanently' : 'Confirm and export'}</button><button type="button" class="button" id="cancel-live-action">Cancel</button></div></form>`);
+  document.querySelector('#cancel-live-action').addEventListener('click', () => dialog.close());
+  document.querySelector('#live-account-action').addEventListener('submit', async event => {
+    event.preventDefault(); const form = event.currentTarget;
+    if (kind === 'delete' && form.querySelector('#confirm-delete').value !== 'DELETE') return;
+    const field = form.querySelector('#confirm-password'), password = field?.value || ''; if (field) field.value = '';
+    const button = form.querySelector('[type=submit]'), cancel = form.querySelector('#cancel-live-action'), close = document.querySelector('#close-dialog');
+    button.disabled = true; cancel.disabled = true; close.disabled = true; dialog.dataset.busy = 'true';
+    try {
+      if (kind === 'delete') await liveConnection.deleteAccount(password);
+      else { const data = await liveConnection.exportData(password); downloadJson(data, 'averlen-account-data.json'); dialog.close(); }
+    } catch (error) { const target = document.querySelector('#account-action-error'); if (target) target.textContent = liveMessage(error); }
+    finally { button.disabled = false; cancel.disabled = false; close.disabled = false; delete dialog.dataset.busy; }
+  });
+}
+function downloadJson(data, filename) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+  const link = document.createElement('a'); link.href = url; link.download = filename; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 document.querySelector('#month').innerHTML = months.map(month => `<option value="${month}">${monthLabel(month)}</option>`).join('');
 document.querySelector('#month').value = state.month;
 document.querySelector('#month').addEventListener('change', event => { state.month = event.target.value; render(); announce(`Showing ${monthLabel(state.month)}.`); });
 document.querySelector('#theme-toggle').addEventListener('click', () => { state.theme = state.theme === 'light' ? 'dark' : 'light'; setTheme(); });
 document.querySelector('#about-preview').addEventListener('click', openAbout);
 document.querySelector('#close-dialog').addEventListener('click', () => dialog.close());
+dialog.addEventListener('cancel', event => { if (dialog.dataset.busy === 'true') event.preventDefault(); });
+dialog.addEventListener('close', () => { dialog.querySelectorAll('input[type=password]').forEach(input => { input.value = ''; }); });
 document.addEventListener('click', event => {
   const action = event.target.closest('[data-action]')?.dataset.action;
   if (action) {
@@ -269,10 +405,11 @@ document.addEventListener('click', event => {
       'start-demo': () => { state.session = true; state.deletedPreview = false; const destination = state.pendingRoute || 'home'; state.pendingRoute = null; navigate(destination); },
       'start-demo-account': () => { state.session = true; state.deletedPreview = false; navigate('account'); },
       'manage-account': () => navigate('account'),
+      'reload-live': () => { void liveConnection?.refresh(); },
       'open-settings': () => navigate('settings'),
-      logout: () => { resetSample(); state.session = false; state.pendingRoute = null; state.deletedPreview = false; navigate('login'); },
-      'reset-sample': () => { resetSample(); render(); announce('Sample changes reset.'); },
-      'monthly-report': () => openDialog(`${monthLabel(state.month)} report`, `${summary(selectedRows())}<p class="subtle">${state.month === currentMonth ? `Month to date through ${dateLabel(asOf)}.` : 'Completed month.'} Sample transactions only.</p><div class="report-categories">${categoryList(selectedRows())}</div>`),
+      logout: () => { if (isLivePage) { void liveSignOut(); return; } resetSample(); state.session = false; state.pendingRoute = null; state.deletedPreview = false; navigate('login'); },
+      'reset-sample': () => { if (isLivePage) { void liveConnection?.refresh(); return; } resetSample(); render(); announce('Sample changes reset.'); },
+      'monthly-report': showMonthlyReport,
       retirement: showRetirement, debt: showDebt, ownership: showOwnership,
       'add-account': () => showManualAccount(), 'delete-account': showDeletion, 'export-sample': exportSample,
       'reset-password-info': () => openDialog('Reset your password', '<p class="subtle">The live website will send a reset link to the email on your Averlen account. Email delivery is not connected in this preview, and no message has been sent.</p>'),
@@ -291,9 +428,10 @@ document.addEventListener('click', event => {
     else location.hash = 'activity';
   }
   const txButton = event.target.closest('[data-tx]');
+  if (txButton && state.liveData) { const tx = rows.find(row => row.id === txButton.dataset.tx); openDialog(tx.merchant, `<p class="subtle">${dateLabel(tx.date)} · ${esc(catFor(tx.category).name)}</p><div class="dialog-value">${tx.income ? '+' : '−'}${money(tx.cents)}</div><p class="note">${esc(tx.note || '')}</p><p class="note">This saved transaction is read-only on the website. Edit it in the iPhone app.</p>`); return; }
   if (txButton) {
     const tx = rows.find(row => row.id === txButton.dataset.tx);
-    openDialog(tx.merchant, `<p class="subtle">${dateLabel(tx.date)} · Sample transaction</p><div class="dialog-value ${tx.income ? 'positive' : ''}">${tx.income ? '+' : '−'}${money(tx.cents)}</div><label for="edit-category" class="dialog-label">Category</label><select id="edit-category">${categories.filter(cat => (cat.id === 'income') === tx.income).map(cat => `<option value="${cat.id}" ${cat.id === tx.category ? 'selected' : ''}>${cat.name}</option>`).join('')}</select><p class="note">Try a different category. This changes sample data in this browser only and resets on reload.</p><div class="button-row"><button class="button primary" id="save-category">Save sample category</button></div>`);
+    openDialog(tx.merchant, `<p class="subtle">${dateLabel(tx.date)} · Sample transaction</p><div class="dialog-value ${tx.income ? 'positive' : ''}">${tx.income ? '+' : '−'}${money(tx.cents)}</div><label for="edit-category" class="dialog-label">Category</label><select id="edit-category">${categories.filter(cat => (cat.id === 'income') === tx.income).map(cat => `<option value="${esc(cat.id)}" ${cat.id === tx.category ? 'selected' : ''}>${esc(cat.name)}</option>`).join('')}</select><p class="note">Try a different category. This changes sample data in this browser only and resets on reload.</p><div class="button-row"><button class="button primary" id="save-category">Save sample category</button></div>`);
     document.querySelector('#save-category').addEventListener('click', () => { tx.category = document.querySelector('#edit-category').value; dialog.close(); render(); announce('Sample category updated.'); });
   }
   const accountButton = event.target.closest('[data-account]');
@@ -314,5 +452,13 @@ function route() {
   window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', route);
+if (isLivePage) {
+  clearLiveRecords(); updateMonths();
+  document.querySelector('.preview-banner>span').textContent = 'Averlen for the web';
+  document.querySelector('#about-preview').textContent = 'About web access';
+  document.querySelector('footer').textContent = 'Averlen · Your saved financial picture';
+  window.addEventListener('pagehide', () => { clearLiveRecords(); state.phase = 'loading'; render(); });
+  window.addEventListener('pageshow', event => { if (event.persisted) void liveConnection?.refresh(); });
+}
 setTheme();
 route();

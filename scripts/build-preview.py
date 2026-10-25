@@ -10,6 +10,7 @@ demo = (preview / 'demo.js').read_text().replace('export const transactions =', 
 model = re.sub(r'^import .*;\n', '', (preview / 'model.js').read_text(), flags=re.M)
 model = model.replace('export const ', 'const ').replace('export function ', 'function ')
 app = re.sub(r'^import .*;\n', '', (preview / 'app.js').read_text(), flags=re.M)
+app = app.replace('export function ', 'function ')
 logo = 'data:image/png;base64,' + base64.b64encode((site / 'averlen-logo.png').read_bytes()).decode()
 script = ('\n' + '\n'.join([demo, model, app]) + '\n').replace('../averlen-logo.png', logo)
 digest = base64.b64encode(hashlib.sha256(script.encode()).digest()).decode()
