@@ -1,10 +1,10 @@
 # Averlen web foundation
 
-Local preview only. Run `python3 scripts/build-preview.py` from the website
-checkout after source edits. This generates both `preview/index.html` and the
-parent workspace's `AVERLEN_WEB_PREVIEW.html`. Either generated file opens
-directly in a browser without a server, installation, or credentials. For browser
-QA, serve the website folder over loopback HTTP and open `/preview/`.
+`preview/index.html` is the source page and is what GitHub Pages serves at
+`/preview/` (no build step). For a single file that opens directly from disk, run
+`python3 scripts/build-preview.py`; it writes the parent workspace's
+`AVERLEN_WEB_PREVIEW.html`. For browser QA, serve the website folder over
+loopback HTTP and open `/preview/`.
 
 The palette, four main tabs, category names, synthetic transactions, and account
 balances come from the iPhone app. Sample changes live in memory only. The CSP

@@ -106,3 +106,12 @@ test('billing and saved-data outages do not block account management or deletion
   assert.ok(server.requests.some(row => row.method === 'DELETE'));
   connection.dispose();
 });
+test('an HTML gateway error on records keeps account controls and marks records unavailable', async () => {
+  const data = fixture(), server = fakeServer(data);
+  const fetchImpl = async (url, options) => new URL(url).pathname === '/api/sync/pull'
+    ? new Response('<html>Bad gateway</html>', { status: 502 }) : server.fetchImpl(url, options);
+  const { events, connection } = await setup(data, { fetchImpl });
+  assert.equal(events.at(-1).data.recordsUnavailable.status, 502);
+  assert.equal(events.at(-1).data.transactions.length, 0);
+  connection.dispose();
+});

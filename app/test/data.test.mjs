@@ -32,12 +32,12 @@ test('investment and Trends settings follow synced preferences without changing 
   const data = fixture();
   data.payload.changes.transactions.push({ ...data.payload.changes.transactions[0], id: 'investment-tx', category_id: 'investments' });
   data.payload.changes.transactions[0].category_id = 'income'; // A category rename/misclassification never changes bank direction.
-  data.payload.changes.user_preferences.push({ id: 'pref', household_id: householdId, pref_key: 'candor_trends_excluded_ids', pref_value: ['tx-1'] });
+  data.payload.changes.user_preferences.push({ id: 'pref', household_id: householdId, pref_key: 'candor_trends_excluded_ids', pref_value: { v: ['TX-1'] } });
   let normalized = normalizeSnapshot(data.profile, data.billing, data.payload);
   assert.equal(normalized.transactions.find(row => row.id === 'tx-1').income, false);
   assert.equal(normalized.transactions.find(row => row.id === 'tx-1').trendExcluded, true);
   assert.equal(normalized.transactions.find(row => row.id === 'investment-tx').excluded, true);
-  data.payload.changes.user_preferences.push({ id: 'pref2', household_id: householdId, pref_key: 'candor_include_investments', pref_value: true });
+  data.payload.changes.user_preferences.push({ id: 'pref2', household_id: householdId, pref_key: 'candor_include_investments', pref_value: { v: true } });
   normalized = normalizeSnapshot(data.profile, data.billing, data.payload);
   assert.equal(normalized.transactions.find(row => row.id === 'investment-tx').excluded, false);
 });
@@ -48,4 +48,15 @@ test('an expired plan does not remove saved records or imply active access', () 
 test('malformed deletion flags fail closed rather than showing a deleted row', () => {
   const data = fixture(); data.payload.changes.transactions[0].is_deleted = 'true';
   assert.throws(() => normalizeSnapshot(data.profile, data.billing, data.payload), { code: 'INVALID_SYNC_RESPONSE' });
+});
+test('server DATE snapshots keep their calendar day in every browser time zone', () => {
+  const data = fixture(), normalized = normalizeSnapshot(data.profile, data.billing, data.payload);
+  assert.deepEqual(normalized.history.map(point => point.date), ['2026-09-25', '2026-10-25']);
+});
+test('wrapped preference values match the iOS wire format; a false toggle stays false', () => {
+  const data = fixture();
+  data.payload.changes.transactions.push({ ...data.payload.changes.transactions[0], id: 'investment-tx', category_id: 'investments' });
+  data.payload.changes.user_preferences.push({ id: 'pref', household_id: householdId, pref_key: 'candor_include_investments', pref_value: { v: false } });
+  const normalized = normalizeSnapshot(data.profile, data.billing, data.payload);
+  assert.equal(normalized.transactions.find(row => row.id === 'investment-tx').excluded, true);
 });

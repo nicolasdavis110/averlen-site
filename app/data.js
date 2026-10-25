@@ -13,8 +13,12 @@ export function cents(value) {
 }
 const text = value => typeof value === 'string' ? value : '';
 const flag = value => { if (value == null) return false; if (typeof value !== 'boolean') throw new DataError('INVALID_SYNC_RESPONSE'); return value; };
-function day(value) {
+// Timestamps (transactions.date) display on the browser's local calendar, as
+// iOS does. Postgres DATE columns (snapshots) carry no time: node-pg serializes
+// them as UTC midnight, so the local conversion would move US users back a day.
+function day(value, { calendarDate = false } = {}) {
   if (typeof value !== 'string') throw new DataError('INVALID_DATE');
+  if (calendarDate && /^\d{4}-\d{2}-\d{2}T00:00:00(?:\.0+)?Z$/.test(value)) return day(value.slice(0, 10));
   if (/^\d{4}-\d{2}-\d{2}T/.test(value)) {
     const instant = new Date(value);
     if (!Number.isFinite(instant.getTime())) throw new DataError('INVALID_DATE');
@@ -47,8 +51,10 @@ export function normalizeSnapshot(profile, billing, payload) {
     belongs(row, householdId);
     if (row.user_id != null && row.user_id !== profile.user.id) throw new DataError('HOUSEHOLD_CHANGED');
     if (flag(row.is_deleted)) continue;
+    // iOS stores every preference as {"v": value} (SyncManager.encodePreferenceValue).
     let value = row.pref_value;
     if (typeof value === 'string') { try { value = JSON.parse(value); } catch { throw new DataError('INVALID_SYNC_RESPONSE'); } }
+    if (value && typeof value === 'object' && !Array.isArray(value) && 'v' in value) value = value.v;
     preferences.set(row.pref_key, value);
   }
   const trendExclusions = preferences.get('candor_trends_excluded_ids') || [];
@@ -81,7 +87,7 @@ export function normalizeSnapshot(profile, billing, payload) {
     if (flag(row.is_deleted)) continue;
     const assets = cents(row.total_assets) + cents(row.manual_assets);
     const liabilities = cents(row.total_liabilities) + cents(row.manual_liabilities);
-    const date = day(row.date);
+    const date = day(row.date, { calendarDate: true });
     const prior = historyByDate.get(date);
     if (!prior || Number(row.version) >= prior.version) historyByDate.set(date, { date, assets, liabilities, cents: assets - liabilities, version: Number(row.version) || 0 });
   }

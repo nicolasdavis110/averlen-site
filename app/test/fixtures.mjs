@@ -8,13 +8,13 @@ export function fixture({ owner = true, members = 1, hasAccess = true, suffix = 
     payload: { household_id: household, changes: {
       categories: [{ id: 'groceries', household_id: household, name: 'Groceries', color_hex: '5FAF87', sort_order: 0 }, { id: 'investments', household_id: household, name: 'Investments', default_slug: 'investments' }, { id: 'income', household_id: household, name: 'Income', default_slug: 'income' }],
       transactions: [
-        { id: 'tx-1', household_id: household, date: '2026-10-25T12:00:00Z', merchant_name: 'Example market', amount: '123.45', category_id: 'groceries', is_income: false },
-        { id: 'tx-2', household_id: household, date: '2026-10-15T12:00:00Z', merchant_name: 'Example salary', amount: '4000.00', category_id: 'income', is_income: true },
+        { id: 'tx-1', household_id: household, date: '2026-10-25T12:00:00Z', merchant_name: 'Example market', amount: 123.45, category_id: 'groceries', is_income: false },
+        { id: 'tx-2', household_id: household, date: '2026-10-15T12:00:00Z', merchant_name: 'Example salary', amount: 4000, category_id: 'income', is_income: true },
       ],
-      manual_accounts: [{ id: 'manual-1', household_id: household, name: 'Example asset', balance: '10000.00', is_asset: true }],
+      manual_accounts: [{ id: 'manual-1', household_id: household, name: 'Example asset', balance: 10000, is_asset: true }],
       net_worth_snapshots: [
-        { id: 'snapshot-1', household_id: household, date: '2026-09-25', total_assets: '2000.00', total_liabilities: '500.00', manual_assets: '9000.00', manual_liabilities: '0.00', version: 1 },
-        { id: 'snapshot-2', household_id: household, date: '2026-10-25', total_assets: '3000.00', total_liabilities: '500.00', manual_assets: '10000.00', manual_liabilities: '0.00', version: 2 },
+        { id: 'snapshot-1', household_id: household, date: '2026-09-25T00:00:00.000Z', total_assets: '2000.00', total_liabilities: '500.00', manual_assets: '9000.00', manual_liabilities: '0.00', version: 1 },
+        { id: 'snapshot-2', household_id: household, date: '2026-10-25T00:00:00.000Z', total_assets: '3000.00', total_liabilities: '500.00', manual_assets: '10000.00', manual_liabilities: '0.00', version: 2 },
       ], user_preferences: [], transaction_purges: [],
     } },
   };

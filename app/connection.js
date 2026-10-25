@@ -57,7 +57,9 @@ export function createConnection({ auth, baseUrl, fetchImpl = fetch, deviceId, o
         credentials: 'omit', cache: 'no-store', redirect: 'error', signal: deadline.signal,
       });
       assertCurrent(context);
-      const body = await response.json(); assertCurrent(context);
+      // Proxies and rate limits can answer with HTML; keep the status meaningful.
+      const body = await response.json().catch(() => { if (response.ok) throw new ConnectionError('INVALID_RESPONSE', response.status); return {}; });
+      assertCurrent(context);
       if (!response.ok) {
         const code = typeof body.code === 'string' ? body.code : response.status === 404 ? 'NOT_REGISTERED' : 'REQUEST_FAILED';
         throw new ConnectionError(code, response.status);
