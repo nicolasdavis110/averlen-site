@@ -2,8 +2,8 @@
 // Keep off until HTTPS, exact CORS origins, Firebase authorized domains, and
 // provider configuration have been verified. This is a deployment readiness flag.
 export const configuration = {
-  enabled: false,
-  appleEnabled: false,
+  enabled: true,
+  appleEnabled: true,
   backendUrl: 'https://candor-plaid-server-production.up.railway.app',
   allowedOrigins: ['https://averlen.app', 'https://www.averlen.app'],
   firebase: {
