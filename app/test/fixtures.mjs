@@ -17,6 +17,13 @@ export function fixture({ owner = true, members = 1, hasAccess = true, suffix = 
         { id: 'snapshot-2', household_id: household, date: '2026-10-25T00:00:00.000Z', total_assets: '3000.00', total_liabilities: '500.00', manual_assets: '10000.00', manual_liabilities: '0.00', version: 2 },
       ], user_preferences: [], transaction_purges: [],
     } },
+    // /list_connected_accounts and /get_balances, as the server returns them.
+    items: [{ item_id: `item-1${suffix}`, institution_name: 'Example Bank', can_manage: true }],
+    balances: { [`item-1${suffix}`]: { accounts: [
+      { id: 'acct-checking', name: 'Checking', type: 'depository', subtype: 'checking', mask: '1111', balances: { current: 2500.5, iso_currency_code: 'USD' } },
+      { id: 'acct-card', name: 'Card', type: 'credit', subtype: 'credit card', mask: '2222', balances: { current: 420.25, iso_currency_code: 'USD' } },
+      { id: 'acct-other', name: 'Other', type: 'other', subtype: null, mask: null, balances: { current: 5 } },
+    ] } },
   };
 }
 export function fakeAuth() {
@@ -38,12 +45,14 @@ export function fakeAuth() {
 export function fakeServer(data = fixture()) {
   const requests = [];
   const fetchImpl = async (url, options) => {
-    requests.push({ path: new URL(url).pathname, method: options.method, headers: options.headers, cache: options.cache, credentials: options.credentials });
+    requests.push({ path: new URL(url).pathname, method: options.method, headers: options.headers, cache: options.cache, credentials: options.credentials, body: options.body ? JSON.parse(options.body) : undefined });
     const path = new URL(url).pathname;
     let body;
     if (path === '/api/auth/me') body = data.profile;
     else if (path === '/api/billing/status') body = data.billing;
     else if (path === '/api/sync/pull') body = data.payload;
+    else if (path === '/list_connected_accounts' && options.method === 'POST') body = { items: data.items };
+    else if (path === '/get_balances' && options.method === 'POST') { body = data.balances[JSON.parse(options.body).item_id]; if (!body) return new Response('{}', { status: 500 }); }
     else if (path === '/api/auth/export') body = { transactions: data.payload.changes.transactions };
     else if (path === '/api/auth/account' && options.method === 'DELETE') body = { message: 'Account deleted.', provider_cleanup: 'queued' };
     else throw new Error('Unexpected test request');

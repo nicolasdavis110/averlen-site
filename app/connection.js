@@ -1,4 +1,4 @@
-import { normalizeSnapshot } from './data.js';
+import { normalizeSnapshot, normalizeBankAccounts } from './data.js';
 
 export class ConnectionError extends Error {
   constructor(code, status = 0) { super(code); this.code = code; this.status = status; }
@@ -45,7 +45,7 @@ export function createConnection({ auth, baseUrl, fetchImpl = fetch, deviceId, o
   function assertCurrent(context) {
     if (context.signal.aborted || context.generation !== generation || auth.currentUser()?.uid !== context.user.uid || current?.uid !== context.user.uid) throw new ConnectionError('SESSION_CHANGED');
   }
-  async function request(path, { method = 'GET', context = capture(), fresh = false } = {}) {
+  async function request(path, { method = 'GET', context = capture(), fresh = false, body: payload } = {}) {
     assertCurrent(context);
     const token = await auth.token(context.user, fresh); assertCurrent(context);
     let response;
@@ -53,7 +53,8 @@ export function createConnection({ auth, baseUrl, fetchImpl = fetch, deviceId, o
     const abort = () => deadline.abort(); context.signal.addEventListener('abort', abort, { once: true });
     try {
       response = await fetchImpl(`${baseUrl.replace(/\/$/, '')}${path}`, {
-        method, headers: { Authorization: `Bearer ${token}`, 'X-App-Version': 'web-0.1', 'X-Device-Platform': 'web' },
+        method, headers: { Authorization: `Bearer ${token}`, 'X-App-Version': 'web-0.1', 'X-Device-Platform': 'web', ...(payload ? { 'Content-Type': 'application/json' } : {}) },
+        ...(payload ? { body: JSON.stringify(payload) } : {}),
         credentials: 'omit', cache: 'no-store', redirect: 'error', signal: deadline.signal,
       });
       assertCurrent(context);
@@ -97,6 +98,20 @@ export function createConnection({ auth, baseUrl, fetchImpl = fetch, deviceId, o
         normalized = normalizeSnapshot(profile, billing, emptyPayload()); recordError = { code: error.code };
       }
       normalized.recordsUnavailable = recordError;
+      // Bank balances are read-only and optional: saved records still show if
+      // a bank or the plan check fails. The app caps households at 10 banks.
+      if (normalized.billing.hasAccess) {
+        try {
+          const listed = await request('/list_connected_accounts', { method: 'POST', context, body: {} });
+          if (!Array.isArray(listed.items)) throw new ConnectionError('INVALID_BALANCES');
+          const items = [];
+          for (const item of listed.items.slice(0, 10)) items.push({ item, response: await request('/get_balances', { method: 'POST', context, body: { item_id: item.item_id } }) });
+          normalized.bankAccounts = normalizeBankAccounts(items);
+        } catch (error) {
+          if (error.code === 'SESSION_CHANGED') throw error;
+          normalized.bankAccounts = []; normalized.banksUnavailable = { code: error.code || 'REQUEST_FAILED' };
+        }
+      }
       snapshot = normalized; onState({ phase: 'ready', data: normalized });
     } catch (error) {
       if (context.generation !== generation || context.signal.aborted) return;

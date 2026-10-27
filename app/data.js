@@ -28,6 +28,7 @@ function day(value, { calendarDate = false } = {}) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(`${date}T12:00:00Z`)) || new Date(`${date}T12:00:00Z`).toISOString().slice(0, 10) !== date) throw new DataError('INVALID_DATE');
   return date;
 }
+const plainObject = value => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 function rows(value) { if (!Array.isArray(value)) throw new DataError('INVALID_SYNC_RESPONSE'); return value; }
 function belongs(row, householdId) {
   if (!row || typeof row.id !== 'string' || row.household_id !== householdId) throw new DataError('HOUSEHOLD_CHANGED');
@@ -79,7 +80,7 @@ export function normalizeSnapshot(profile, billing, payload) {
   const accounts = rows(changes.manual_accounts).filter(row => belongs(row, householdId) && !flag(row.is_deleted)).map(row => ({
     id: row.id, name: text(row.name) || 'Manual account', cents: flag(row.is_asset) ? cents(row.balance) : Math.abs(cents(row.balance)),
     asset: flag(row.is_asset), manual: true, type: flag(row.is_asset) ? 'Other Assets' : 'Other Liabilities',
-    updatedAt: text(row.last_updated), institution: 'Manual', mask: '',
+    updatedAt: text(row.last_updated), institution: 'Manual', mask: '', icon: text(row.icon),
   }));
   const historyByDate = new Map();
   for (const row of rows(changes.net_worth_snapshots)) {
@@ -92,7 +93,37 @@ export function normalizeSnapshot(profile, billing, payload) {
     if (!prior || Number(row.version) >= prior.version) historyByDate.set(date, { date, assets, liabilities, cents: assets - liabilities, version: Number(row.version) || 0 });
   }
   return {
-    profile, billing: { hasAccess: billing.has_access === true, status: text(billing.status), expiresAt: billing.access_expires_at || null },
+    profile, billing: { hasAccess: billing.has_access === true, status: text(billing.status), expiresAt: billing.access_expires_at || null, isPurchaser: billing.is_purchaser === true ? true : billing.is_purchaser === false ? false : null, productId: text(billing.product_id), trialEndsAt: billing.trial_ends_at || null },
     transactions, categories, accounts, history: [...historyByDate.values()].sort((a, b) => a.date.localeCompare(b.date)), householdId,
+    // Planning blobs are parsed by preview/planning.js, which rejects any
+    // shape the app itself would not accept.
+    plans: {
+      retirement: preferences.get('candor_retirement_plan') ?? null, loans: preferences.get('candor_debt_loans') ?? null,
+      ownership: preferences.get('candor_ownership_split') ?? null,
+      nicknames: plainObject(preferences.get('candor_account_nicknames')), hideIdle: preferences.get('candor_hide_idle_accounts') === true,
+    },
+    bankAccounts: [], banksUnavailable: null,
   };
+}
+
+// Balances from /get_balances (Plaid accounts/get, cached, no extra charge).
+// Same buckets as the app: depository and investment are assets; credit and
+// loan are liabilities; anything else is left out of net worth, as on iOS.
+export function normalizeBankAccounts(items) {
+  const accounts = [];
+  for (const { item, response } of items) {
+    if (!item || typeof item.item_id !== 'string' || !Array.isArray(response?.accounts)) throw new DataError('INVALID_BALANCES');
+    for (const account of response.accounts) {
+      if (!account || typeof account.id !== 'string') throw new DataError('INVALID_BALANCES');
+      const type = text(account.type), current = account.balances?.current;
+      if (!['depository', 'investment', 'credit', 'loan'].includes(type)) continue;
+      if (current != null && (typeof current !== 'number' || !Number.isFinite(current))) throw new DataError('INVALID_BALANCES');
+      accounts.push({
+        id: account.id, itemId: item.item_id, institution: text(item.institution_name) || 'Connected bank', name: text(account.name) || 'Account',
+        mask: text(account.mask), type, subtype: text(account.subtype), currency: text(account.balances?.iso_currency_code),
+        balance: current ?? 0, asset: type === 'depository' || type === 'investment',
+      });
+    }
+  }
+  return accounts;
 }

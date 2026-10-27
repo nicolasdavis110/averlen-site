@@ -1,4 +1,5 @@
-import { categories, accounts, localDateKey, makeDemo, forMonth, totals, categoryTotals, wealthTotals, applyOwnership, makeWealthHistory, retirementEstimate, amortize, deletionPolicy, monthChange, attentionStory, pace, trendsComparison, monthlySeries } from './model.js';
+import { categories, accounts, localDateKey, makeDemo, forMonth, totals, categoryTotals, makeWealthHistory, deletionPolicy, monthChange, attentionStory, pace, trendsComparison, monthlySeries } from './model.js';
+import { RETIREMENT, demoRetirementPlan, parseRetirementPlan, retirementProjection, retirementEligibleBalance, statusLabel, parseLoans, demoLoans, loanResult, payoffScenario, debtPortfolio, loanKindName, parseOwnership, ownershipLens } from './planning.js';
 
 const paths = {
   home: '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/>',
@@ -21,6 +22,19 @@ const paths = {
   moon: '<path d="M20 15A9 9 0 0 1 9 3a9 9 0 1 0 11 12Z"/>',
   bank: '<path d="m2 8 10-6 10 6ZM3 21h18M5 10v8M10 10v8M14 10v8M19 10v8"/>',
   spark: '<path d="m12 3 3 6 6 3-6 3-3 6-3-6-6-3 6-3Z"/>',
+  cash: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/>',
+  card: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/>',
+  plusCircle: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+  minusCircle: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
+  check: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+  alert: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.4v.1"/>',
+  xCircle: '<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/>',
+  percent: '<path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',
+  down: '<path d="M3 3v18h18M6 8l5 5 4-3 6 7"/>',
+  person: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  shield: '<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6Z"/>',
+  doc: '<path d="M6 3h8l4 4v14H6Z"/><path d="M14 3v4h4M9 12h6M9 16h6"/>',
 };
 const icon = name => `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name] || paths.bank}</svg>`;
 const esc = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -43,10 +57,9 @@ let liveMessage = () => 'Could not finish this request. Please try again.';
 const rows = makeDemo(today);
 const wealthAccounts = accounts.map(account => ({ ...account }));
 const wealthHistory = makeWealthHistory(today);
-const defaultRetirement = { age: 35, retirementAge: 65, balanceCents: 0, monthlyCents: 30000, realReturn: 5 };
-const defaultDebt = { balanceCents: 84721, apr: 19.99, paymentCents: 7500, extraCents: 5000, lumpSumCents: 0 };
+const samplePlanning = () => ({ retirement: demoRetirementPlan(), retirementBalance: RETIREMENT.demoBalance, loans: demoLoans(today), debtExtra: 200, split: false, share: 50, lens: 'household' });
 const months = [...new Set(rows.map(tx => tx.date.slice(0, 7)))].sort().reverse();
-const state = { route: 'login', session: false, liveData: null, phase: 'signed-out', liveError: null, liveDeleted: false, month: currentMonth, query: '', category: '', type: '', historyWeeks: 26, lens: 'household', share: 50, retirement: { ...defaultRetirement }, debt: { ...defaultDebt }, deletedPreview: false, theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' };
+const state = { route: 'login', session: false, liveData: null, phase: 'signed-out', liveError: null, liveDeleted: false, month: currentMonth, query: '', category: '', type: '', ...samplePlanning(), deletedPreview: false, theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' };
 const main = document.querySelector('#main');
 const dialog = document.querySelector('#detail');
 const catFor = id => categories.find(cat => cat.id === id) || { name: 'Uncategorized', color: '#6C6E73', icon: 'bag' };
@@ -130,44 +143,248 @@ function trends() {
   }).join('');
   main.innerHTML = `${summary(forMonth(trendRows, state.month))}<div class="grid"><section class="card"><div class="section-heading"><div><h2>Spending over time</h2><p class="card-subtitle">${isCurrent ? `Through day ${series.cutoff} of each month` : 'Spending by month'}</p></div><div class="projected"><strong>${compact(selected.spending)}</strong><span>${monthLabel(state.month)}</span></div></div><div class="bars" style="--t:${series.typical ? (series.typical / max).toFixed(3) : 0}">${series.typical ? '<span class="typical-rule" aria-hidden="true"></span>' : ''}${series.bars.map(bar => `<div class="bar-group"><button class="bar-button ${bar.month === state.month ? 'selected' : ''}" data-month="${bar.month}" style="--h:${(bar.spending / max).toFixed(3)}" aria-label="Explore ${monthLabel(bar.month)}, ${money(bar.spending)} spending" title="${monthLabel(bar.month)} · ${money(bar.spending)}"></button><span class="bar-month">${shortMonth(bar.month)}</span></div>`).join('')}</div>${series.typical ? `<div class="chart-legend"><span><i class="swatch dashed"></i>${compact(series.typical)} typical</span></div>` : ''}<p class="legend">Only months covered from day 1 are shown${isCurrent ? '; every month stops at the same day' : ''}. Select a bar to explore that month.</p></section><section class="card"><div class="section-heading"><div><h2>What changed</h2><p class="card-subtitle">${esc(summaryLine)}</p></div><span class="comparison-label">${esc(comparison.label)}</span></div>${comparison.available ? drivers || empty('No category moved meaningfully from your typical level.') : empty('A full prior month of saved history is needed for a fair comparison.')}${drivers ? '<p class="legend">Select a category to review the transactions behind the change.</p>' : ''}</section><section class="card report-card full"><div class="insight-icon">${icon('activity')}</div><div><h2>Your monthly report</h2><p class="subtle">See income, spending, and the purchases behind ${monthLabel(state.month)} in one place.</p></div><button class="button" data-action="monthly-report">Open report →</button></section></div>`;
 }
+// ── Wealth (mirrors WealthView.swift: hero, Progress, Next steps, Accounts) ──
+// Same "$1.1M" / "$12.5K" rules as Double.asCompactCurrency on iOS.
+function compactDollars(value) {
+  if (!Number.isFinite(value)) return '—';
+  const abs = Math.abs(value), sign = value < 0 ? '-' : '';
+  if (abs >= 1e6) { const m = abs / 1e6; return `${sign}$${Number.isInteger(m) ? m.toFixed(0) : m.toFixed(1)}M`; }
+  if (abs >= 1e4) { const k = abs / 1e3; return `${sign}$${Number.isInteger(k) ? k.toFixed(0) : k.toFixed(1)}K`; }
+  if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(1)}K`;
+  return `${sign}$${abs.toFixed(0)}`;
+}
+const dollars = value => roundMoney(Math.round(value * 100));
+const monthYear = date => date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+const isoMonthYear = iso => monthYear(new Date(`${iso}T12:00:00`));
+const chevron = '<span class="row-chevron" aria-hidden="true">›</span>';
+const groupOrder = [['Cash', true, 'cash'], ['Investments', true, 'trends'], ['Credit Cards', false, 'card'], ['Loans', false, 'bank'], ['Other Assets', true, 'plusCircle'], ['Other Liabilities', false, 'minusCircle']];
+const bankGroup = { depository: 'Cash', investment: 'Investments', credit: 'Credit Cards', loan: 'Loans' };
+// Manual accounts are grouped by the icon chosen in the app, as on iOS.
+function manualGroup(account) {
+  if (!state.liveData && groupOrder.some(([title]) => title === account.type)) return account.type;
+  if (account.asset) return account.icon === 'dollarsign.circle.fill' ? 'Cash' : account.icon === 'chart.line.uptrend.xyaxis' ? 'Investments' : 'Other Assets';
+  return account.icon === 'creditcard.fill' ? 'Credit Cards' : ['house.fill', 'car.fill', 'graduationcap.fill'].includes(account.icon) ? 'Loans' : 'Other Liabilities';
+}
+function wealthModel() {
+  const live = state.liveData;
+  const nicknames = live?.plans.nicknames || {};
+  const nickname = id => { const key = Object.keys(nicknames).find(candidate => candidate.toLowerCase() === String(id).toLowerCase()); const value = key && nicknames[key]; return typeof value === 'string' && value.trim() ? value.trim() : null; };
+  const banks = live ? live.bankAccounts : wealthAccounts.filter(account => !account.manual).map(account => ({ id: account.id, name: account.name, institution: account.institution, mask: account.mask, type: account.asset ? 'depository' : 'credit', subtype: account.asset ? (account.id === 'savings' ? 'savings' : 'checking') : 'credit card', balance: account.cents / 100, asset: account.asset }));
+  const current = live ? live.billing.hasAccess && !live.banksUnavailable : true;
+  const split = live ? parseOwnership(live.plans.ownership) : state.split ? { mode: state.share === 50 ? 'even' : 'custom', anchorUserId: null, defaultPercent: state.share, perAccount: {} } : null;
+  const lens = ownershipLens(split, live?.profile.user.id ?? null);
+  // Without fresh bank balances the per-account shares can't be applied.
+  const mine = lens.active && current && state.lens === 'mine';
+  const entries = [
+    ...banks.map(account => ({ id: account.id, name: nickname(account.id) || account.name, originalName: account.name, detail: `${account.institution}${account.mask ? ` · ••${account.mask}` : ''}`, group: bankGroup[account.type], asset: account.asset, cents: Math.round((account.asset ? account.balance : Math.abs(account.balance)) * 100), manual: false, subtype: account.subtype })),
+    ...wealthAccounts.filter(account => account.manual).map(account => ({ id: account.id, name: nickname(account.id) || account.name, originalName: account.name, detail: 'Added manually', group: manualGroup(account), asset: account.asset, cents: account.cents, manual: true, updatedAt: account.updatedAt })),
+  ].map(entry => { const percent = mine ? lens.percentFor(entry.id) : 100; return { ...entry, percent, shareCents: Math.round(entry.cents * percent / 100) }; });
+  const sum = (list, key) => list.reduce((total, entry) => total + entry[key], 0);
+  const assetEntries = entries.filter(entry => entry.asset), liabilityEntries = entries.filter(entry => !entry.asset);
+  const household = { assets: sum(assetEntries, 'cents'), liabilities: sum(liabilityEntries, 'cents') };
+  const shown = { assets: sum(assetEntries, 'shareCents'), liabilities: sum(liabilityEntries, 'shareCents') };
+  // Snapshots store household totals only, so history uses today's blended
+  // asset and liability shares (the app's approximation; today is exact).
+  const fallback = lens.defaultPercent / 100;
+  const assetRatio = !mine ? 1 : Math.abs(household.assets) > 1 ? shown.assets / household.assets : fallback;
+  const liabilityRatio = !mine ? 1 : Math.abs(household.liabilities) > 1 ? shown.liabilities / household.liabilities : fallback;
+  const byDate = new Map(wealthHistory.map(point => [point.date, { date: point.date, cents: Math.round(point.assets != null ? point.assets * assetRatio - point.liabilities * liabilityRatio : point.cents * assetRatio), assets: point.assets, liabilities: point.liabilities }]));
+  if (current) byDate.set(asOf, { date: asOf, cents: shown.assets - shown.liabilities });
+  const points = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+  const groups = groupOrder.map(([title, asset, glyph]) => ({ title, asset, glyph, accounts: entries.filter(entry => entry.group === title && Math.abs(entry.cents) >= 1) })).filter(group => group.accounts.length);
+  const latest = points.at(-1);
+  const totals = current ? shown : { assets: latest?.assets ?? 0, liabilities: latest?.liabilities ?? 0 };
+  const change = points.length >= 2 ? { cents: points.at(-1).cents - points[0].cents, percent: Math.abs(points[0].cents) > 1 ? (points.at(-1).cents - points[0].cents) / Math.abs(points[0].cents) * 100 : null, start: points[0].date } : null;
+  return { live, current, lens, mine, entries, groups, points, change, totals, net: current ? shown.assets - shown.liabilities : latest?.cents ?? 0, tracked: groups.reduce((count, group) => count + group.accounts.length, 0), latest };
+}
+function changeBadge(change) {
+  const flat = Math.abs(change.cents) < 50, up = change.cents > 0, since = isoMonthYear(change.start);
+  return `<span class="change-badge ${flat ? 'flat' : up ? 'up' : 'down'}">${flat ? '=' : up ? '↗' : '↘'} ${flat ? `Steady since ${since}` : `${up ? 'Up' : 'Down'} ${compactDollars(Math.abs(change.cents) / 100)} since ${since}`}</span>`;
+}
+function changeChip(change) {
+  const flat = Math.abs(change.cents) < 50, up = change.cents > 0;
+  const label = flat ? 'Steady' : change.percent != null ? `${up ? '+' : '−'}${Math.round(Math.min(Math.abs(change.percent), 999))}%` : `${up ? '+' : '−'}${compactDollars(Math.abs(change.cents) / 100)}`;
+  return `<span class="change-chip ${flat ? 'flat' : up ? 'up' : 'down'}">${label}</span>`;
+}
 function historyChart(points) {
-  const min = Math.min(...points.map(point => point.cents));
-  const max = Math.max(...points.map(point => point.cents));
-  const spread = Math.max(max - min, 10000);
-  const coords = points.map((point, i) => [i / Math.max(points.length - 1, 1) * 600, 158 - (point.cents - min) / spread * 130]);
-  return `<svg class="chart history-chart" viewBox="0 0 600 180" role="img" aria-label="Illustrative net worth history from ${money(points[0].cents)} to ${money(points.at(-1).cents)}">${[28, 93, 158].map(y => `<line class="gridline" x1="0" x2="600" y1="${y}" y2="${y}"/>`).join('')}<polyline class="spending-line" points="${coords.map(point => point.join(',')).join(' ')}"/><circle cx="600" cy="${coords.at(-1)[1]}" r="4" fill="var(--green)"/></svg><div class="chart-axis"><span>${dateLabel(points[0].date)}</span><span>${dateLabel(points.at(-1).date)}</span></div>`;
+  const values = points.map(point => point.cents), min = Math.min(...values), max = Math.max(...values);
+  const pad = Math.max((max - min) * .12, 5000), low = min - pad, high = max + pad;
+  const first = new Date(`${points[0].date}T12:00:00`).getTime(), span = Math.max(new Date(`${points.at(-1).date}T12:00:00`).getTime() - first, 1);
+  const x = point => (new Date(`${point.date}T12:00:00`).getTime() - first) / span * 600, y = cents => 170 - (cents - low) / (high - low) * 155;
+  const line = points.map(point => `${x(point).toFixed(1)},${y(point.cents).toFixed(1)}`).join(' ');
+  const multiYear = points[0].date.slice(0, 4) !== points.at(-1).date.slice(0, 4);
+  const axis = [...new Set([0, Math.floor(points.length / 2), points.length - 1])].map(i => new Date(`${points[i].date}T12:00:00`).toLocaleDateString('en-US', multiYear ? { month: 'short', year: '2-digit' } : { month: 'short', day: 'numeric' }));
+  const zero = min < 0 && max > 0 ? `<line class="zero-rule" x1="0" x2="600" y1="${y(0)}" y2="${y(0)}"/>` : '';
+  const last = points.at(-1);
+  return `<div class="history-wrap"><svg class="chart history-chart" viewBox="0 0 600 180" preserveAspectRatio="none" role="img" aria-label="Net worth history from ${money(points[0].cents)} to ${money(last.cents)}" data-points='${esc(JSON.stringify(points.map(point => [point.date, point.cents, +x(point).toFixed(1), +y(point.cents).toFixed(1)])))}'><defs><linearGradient id="wealth-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--green)" stop-opacity=".22"/><stop offset="1" stop-color="var(--green)" stop-opacity="0"/></linearGradient></defs>${[15, 92, 170].map(level => `<line class="gridline" x1="0" x2="600" y1="${level}" y2="${level}"/>`).join('')}${zero}<polygon class="history-area" points="0,180 ${line} 600,180"/><polyline class="history-line" points="${line}"/><line class="scrub-rule" x1="0" x2="0" y1="0" y2="180" hidden/></svg><span class="history-dot" style="left:${x(last) / 6}%;top:${y(last.cents) / 1.8}%"></span></div><div class="chart-axis">${axis.map(label => `<span>${label}</span>`).join('')}</div>`;
+}
+// Hover/touch scrubbing swaps the card title for the point's value, as on iOS.
+function attachHistoryScrub() {
+  const svg = main.querySelector('.history-chart'); if (!svg) return;
+  const points = JSON.parse(svg.dataset.points), title = main.querySelector('#history-title'), resting = title.innerHTML;
+  const dot = main.querySelector('.history-dot'), rule = svg.querySelector('.scrub-rule'), restingDot = dot.getAttribute('style');
+  const move = event => {
+    const box = svg.getBoundingClientRect(), position = (event.clientX - box.left) / box.width * 600;
+    const point = points.reduce((best, candidate) => Math.abs(candidate[2] - position) < Math.abs(best[2] - position) ? candidate : best);
+    title.innerHTML = `<strong class="scrub-value">${money(point[1])}</strong><span class="card-subtitle">${new Date(`${point[0]}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>`;
+    rule.hidden = false; rule.setAttribute('x1', point[2]); rule.setAttribute('x2', point[2]);
+    dot.style.left = `${point[2] / 6}%`; dot.style.top = `${point[3] / 1.8}%`;
+  };
+  const leave = () => { title.innerHTML = resting; rule.hidden = true; dot.setAttribute('style', restingDot); };
+  svg.addEventListener('pointermove', move); svg.addEventListener('pointerdown', move); svg.addEventListener('pointerleave', leave); svg.addEventListener('pointercancel', leave);
+}
+function retirementModel() {
+  const live = state.liveData;
+  if (!live) return { plan: state.retirement, balance: state.retirementBalance, result: retirementProjection(state.retirement, state.retirementBalance) };
+  const plan = parseRetirementPlan(live.plans.retirement);
+  if (!plan) return { plan: null, unreadable: live.plans.retirement != null };
+  const balance = retirementEligibleBalance(plan, { bankAccounts: live.bankAccounts, manualAccounts: wealthAccounts });
+  return { plan, balance, result: retirementProjection(plan, balance), partial: !(live.billing.hasAccess && !live.banksUnavailable) };
+}
+const debtLoans = () => state.liveData ? parseLoans(state.liveData.plans.loans) : state.loans;
+const gapHeadline = gap => gap > 0 ? `${compactDollars(Math.abs(gap))} ahead of goal` : gap < 0 ? `${compactDollars(Math.abs(gap))} behind goal` : 'Right on goal';
+const statusIcon = { onTrack: 'check', needsAttention: 'alert', offTrack: 'xCircle' };
+function debtSubline(portfolio) {
+  if (portfolio.debtFreeDate) return `Debt-free by ${monthYear(portfolio.debtFreeDate)}`;
+  if (portfolio.anyNeverPaysOff) return 'A payment is too low to reach payoff';
+  if (portfolio.anyHorizonExceeded) return 'Payoff exceeds the 100-year estimate';
+  return `${compactDollars(portfolio.totalInterest)} in interest remaining`;
+}
+function planningCards() {
+  const retirement = retirementModel(), loans = debtLoans();
+  const retirementCard = retirement.result
+    ? `<button class="plan-card" data-action="retirement"><span class="plan-icon status-${retirement.result.status}">${icon(statusIcon[retirement.result.status])}</span><span><small class="plan-kicker">Retirement · <b class="status-${retirement.result.status}">${statusLabel[retirement.result.status]}</b></small><strong>${gapHeadline(retirement.result.gap)}</strong><small>Projected ${compactDollars(retirement.result.projectedBalance)} ${retirement.plan.includesPartner ? 'when you turn' : 'at age'} ${retirement.result.laterRetirementAge}</small></span>${chevron}</button>`
+    : `<button class="plan-card" data-action="retirement"><span class="plan-icon">${icon('trends')}</span><span><strong>Plan your retirement</strong><small>${retirement.unreadable ? 'Open Retirement in the iPhone app to review your saved plan.' : 'Answer a short survey in the iPhone app to see if you’re on track.'}</small></span>${chevron}</button>`;
+  const portfolio = loans.length ? debtPortfolio(loans, today) : null;
+  const debtCard = portfolio
+    ? `<button class="plan-card" data-action="debt"><span class="plan-icon">${icon('down')}</span><span><small class="plan-kicker">Debt Payoff · ${portfolio.loanCount === 1 ? '1 loan' : `${portfolio.loanCount} loans`}</small><strong>${compactDollars(portfolio.totalBalance)} owed</strong><small>${debtSubline(portfolio)}</small></span>${chevron}</button>`
+    : `<button class="plan-card" data-action="debt"><span class="plan-icon">${icon('down')}</span><span><strong>Simulate your debt payoff</strong><small>Add a loan ${state.liveData ? 'in the iPhone app ' : ''}to see interest paid and how to pay it off faster.</small></span>${chevron}</button>`;
+  return retirementCard + debtCard;
 }
 function wealth() {
-  if (state.liveData) { savedWealth(); return; }
-  const share = state.lens === 'mine' ? state.share : 100;
-  const displayAccounts = applyOwnership(wealthAccounts, share);
-  const sum = wealthTotals(displayAccounts);
-  const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - state.historyWeeks * 7, 12);
-  const history = wealthHistory.filter(point => point.date >= localDateKey(cutoff)).map(point => ({ ...point, cents: Math.round(point.cents * share / 100) }));
-  history[history.length - 1] = { date: asOf, cents: sum.net };
-  const change = sum.net - history[0].cents;
-  const groups = [...new Set(displayAccounts.map(account => account.manual ? account.type : account.asset ? 'Cash' : 'Credit Cards'))];
-  const groupHtml = groups.map(group => {
-    const grouped = displayAccounts.filter(account => (account.manual ? account.type : account.asset ? 'Cash' : 'Credit Cards') === group);
-    return `<section class="card">${header(esc(group), `${grouped.length} account${grouped.length === 1 ? '' : 's'}`)}${grouped.map(account => `<button class="balance-row" data-account="${account.id}"><span class="category-icon" style="--category-color:var(--green)">${icon(account.asset ? 'bank' : 'income')}</span><span><strong>${esc(account.name)}</strong><small>${account.manual ? 'Added manually · Sample' : `${esc(account.institution)} · ••${account.mask}`}${share < 100 ? ` · ${share}% share` : ''}</small></span><strong>${money(account.cents)}</strong></button>`).join('')}</section>`;
-  }).join('');
-  const retirement = retirementEstimate(state.retirement);
-  const debt = amortize(state.debt);
-  main.innerHTML = `<p class="intro">Your progress, your next steps, and your complete financial picture.</p><div class="wealth-toolbar"><div class="segmented" aria-label="Ownership view"><button data-lens="household" aria-pressed="${state.lens === 'household'}">Household</button><button data-lens="mine" aria-pressed="${state.lens === 'mine'}">My share · ${state.share}%</button></div><button class="text-button" data-action="ownership">Edit ownership split</button></div><div class="grid"><section class="card hero"><div class="overline">${state.lens === 'mine' ? 'Your share' : 'Sample household'} · Net worth</div><div class="hero-number">${money(sum.net)}</div><p class="subtle">Assets minus liabilities · ${dateLabel(asOf)}</p><div class="stats"><div><div class="stat-label">Assets</div><div class="stat-value">${money(sum.assets)}</div></div><div><div class="stat-label">Liabilities</div><div class="stat-value">${money(sum.liabilities)}</div></div></div></section><section class="card planning-card">${header('Next steps', 'Explore a few possibilities')}<button class="planning-row" data-action="retirement"><span class="insight-icon">${icon('trends')}</span><span><strong>Plan your retirement</strong><small>${money(retirement.cents)} projected at age ${state.retirement.retirementAge} · Sample plan</small></span><span>→</span></button><button class="planning-row" data-action="debt"><span class="insight-icon">${icon('income')}</span><span><strong>Simulate your debt payoff</strong><small>${debt.paysOff ? `${debt.months} months with the sample extra payment` : 'Explore payments and interest'}</small></span><span>→</span></button></section><section class="card full">${header('Net worth history', 'Illustrative sample history; today reconciles to the accounts below', `<div class="segmented">${[[4, '1M'], [13, '3M'], [26, '6M']].map(([weeks, label]) => `<button data-history="${weeks}" aria-pressed="${state.historyWeeks === weeks}">${label}</button>`).join('')}</div>`)}<div class="chart-summary"><strong>${change < 0 ? '−' : '+'}${money(Math.abs(change))}</strong><span>over this period · ${state.lens === 'mine' ? 'your share' : 'household'}</span></div>${historyChart(history)}<label class="history-select">Snapshot <select id="history-point">${history.map(point => `<option value="${point.date}" ${point.date === asOf ? 'selected' : ''}>${dateLabel(point.date)} · ${money(point.cents)}</option>`).join('')}</select></label></section><div class="accounts-heading full"><div><h2>Accounts</h2><p class="subtle">${wealthAccounts.length} tracked · all changes in this preview reset on reload</p></div><button class="button" data-action="add-account">+ Add manual account</button></div>${groupHtml}</div>`;
+  const model = wealthModel(), { lens, mine } = model;
+  const title = mine ? 'Your net worth' : lens.active ? 'Household net worth' : 'Net worth';
+  const notice = model.live && !model.current
+    ? `<section class="card notice-card full"><span class="plan-icon status-needsAttention">${icon('alert')}</span><div><strong>${model.live.billing.hasAccess ? 'Bank balances couldn’t be refreshed' : 'Bank balances need an active plan'}</strong><p class="subtle">${model.latest ? `Showing your last saved net worth from ${dateLabel(model.latest.date)}. ` : ''}${model.live.billing.hasAccess ? 'Try reloading in a moment.' : 'Your saved history and manual accounts are still here.'}</p></div>${model.live.billing.hasAccess ? '<button class="button" data-action="reload-live">Reload</button>' : ''}</section>`
+    : '';
+  const hero = `<section class="card hero wealth-hero full"><div class="wealth-hero-top"><div><div class="overline">${title.toUpperCase()}</div><small class="subtle">${model.tracked ? `Across ${model.tracked} tracked account${model.tracked === 1 ? '' : 's'}` : 'No tracked accounts yet'}</small></div><button class="share-pill" data-action="ownership">${icon('percent')}${lens.label}</button></div><div class="hero-number">${model.current || model.latest ? roundMoney(model.net) : '—'}</div>${model.change && model.current ? changeBadge(model.change) : `<span class="change-badge flat">${model.points.length ? 'Historical progress is shown below' : 'Tracking starts with your first balance snapshot'}</span>`}<div class="metric-pills"><div class="metric-pill asset"><span>↗ Assets</span><strong>${compactDollars(model.totals.assets / 100)}</strong></div><div class="metric-pill liability"><span>↘ Liabilities</span><strong>${compactDollars(model.totals.liabilities / 100)}</strong></div></div>${lens.active && model.current ? `<div class="segmented lens-toggle" aria-label="Ownership view"><button data-lens="household" aria-pressed="${!mine}">Household</button><button data-lens="mine" aria-pressed="${mine}">Your share</button></div>` : ''}</section>`;
+  const progress = model.points.length >= 2
+    ? `<section class="card full"><div class="section-heading"><div id="history-title"><h2>Net worth history</h2><p class="card-subtitle">${isoMonthYear(model.points[0].date) === isoMonthYear(model.points.at(-1).date) ? isoMonthYear(model.points[0].date) : `${isoMonthYear(model.points[0].date)} – ${isoMonthYear(model.points.at(-1).date)}`}</p></div>${model.change ? changeChip(model.change) : ''}</div>${historyChart(model.points)}${mine ? '<p class="note">Earlier points apply today’s ownership mix; today’s value is exact.</p>' : ''}</section>`
+    : `<section class="card notice-card full"><span class="plan-icon">${icon('trends')}</span><div><strong>Your trend is still taking shape</strong><p class="subtle">We’ll show direction after balances have been captured on at least two dates.</p></div></section>`;
+  const ledger = model.groups.length
+    ? `<section class="card ledger full">${model.groups.map(group => `<div class="ledger-group ${group.asset ? 'asset' : 'liability'}"><div class="ledger-head">${icon(group.glyph)}<span>${group.title}</span><strong>${roundMoney(group.accounts.reduce((total, account) => total + account.shareCents, 0))}</strong></div>${group.accounts.map(account => `<button class="ledger-row" data-account="${esc(account.id)}"><span class="ledger-icon">${icon(group.glyph)}</span><span class="ledger-name">${esc(account.name)}</span><strong>${roundMoney(account.shareCents)}</strong>${chevron}</button>`).join('')}</div>`).join('')}</section>`
+    : `<section class="card notice-card full"><span class="plan-icon">${icon('bank')}</span><div><strong>No accounts yet</strong><p class="subtle">${model.live ? 'Connect a bank or add a manual account in the iPhone app.' : 'Add a manual account to start your picture.'}</p></div></section>`;
+  main.innerHTML = `<p class="intro">${model.live ? 'Your net worth, from your connected banks and saved accounts.' : 'Your progress, your next steps, and your complete financial picture.'}</p><div class="grid wealth-grid">${hero}${notice}<div class="section-label full">PROGRESS</div>${progress}<div class="section-label full">NEXT STEPS</div><div class="plan-cards full">${planningCards()}</div><div class="accounts-heading full"><div class="section-label">ACCOUNTS${model.tracked ? `<small>${model.tracked} tracked</small>` : ''}</div>${model.live ? '' : '<button class="button" data-action="add-account">+ Add manual account</button>'}</div>${ledger}</div>`;
+  attachHistoryScrub();
 }
+function showAccount(id) {
+  const model = wealthModel(), account = model.entries.find(entry => entry.id === id);
+  if (!account) return;
+  if (account.manual && !state.liveData) { showManualAccount(wealthAccounts.find(row => row.id === id)); return; }
+  const share = model.lens.active && model.current ? model.lens.percentFor(account.id) : 100;
+  openDialog(account.name, `<p class="subtle">${esc(account.detail)}</p><div class="dialog-value">${roundMoney(account.cents)}</div>${account.name !== account.originalName ? `<div class="definition"><span>Bank name</span><strong>${esc(account.originalName)}</strong></div>` : ''}<div class="definition"><span>Group</span><strong>${esc(account.group)}</strong></div><div class="definition"><span>Net worth</span><strong>${account.asset ? 'Asset' : 'Liability'}</strong></div>${share < 100 ? `<div class="definition"><span>Your ${Math.round(share)}%</span><strong>${roundMoney(Math.round(account.cents * share / 100))}</strong></div>` : ''}${account.updatedAt ? `<div class="definition"><span>Last updated</span><strong>${dateLabel(account.updatedAt.slice(0, 10))}</strong></div>` : ''}<p class="note">${state.liveData ? 'Rename, edit, or remove accounts in the iPhone app.' : 'This is a synthetic account; no bank is connected.'}</p>`);
+}
+function showOwnership() {
+  const model = wealthModel(), { lens } = model;
+  if (state.liveData) {
+    const body = lens.active
+      ? `<p class="subtle">Your household uses ${lens.label === '50% share' ? 'an even 50/50 split' : 'a split set account by account'}. “Your share” applies your percentage to every balance; Household shows the full picture. Both are true.</p>${model.current ? model.entries.filter(entry => Math.abs(entry.cents) >= 1).map(entry => `<div class="definition"><span>${esc(entry.name)}</span><strong>${Math.round(lens.percentFor(entry.id))}%</strong></div>`).join('') : '<p class="note">Account percentages appear when bank balances are available.</p>'}`
+      : `<p class="subtle">Show your share of the household picture, account by account. ${parseOwnership(state.liveData.plans.ownership) ? 'Your household’s split is waiting for your household details. Open Wealth in the iPhone app once to finish setting it up.' : 'Set up an ownership split from Wealth in the iPhone app.'}</p>`;
+    openDialog('Ownership split', `${body}<p class="note">Splits are a display lens. They never change balances or history, and changes are made in the iPhone app.</p>`);
+    return;
+  }
+  openDialog('Ownership split', `<p class="subtle">Show your share of the household picture. This is a display view; it does not change balances or history.</p><form id="ownership-form"><label class="toggle-row"><input type="checkbox" id="ownership-enabled" ${state.split ? 'checked' : ''}><span>Split ownership with a partner</span></label>${formField('ownership-share', 'Your share of each account (%)', state.share, { min: 0, max: 100, step: 1 })}<p class="note">In the app you can also set a different share for each account. Your partner automatically sees the other side.</p><button class="button primary" type="submit">Save sample split</button></form>`);
+  document.querySelector('#ownership-form').addEventListener('submit', event => {
+    event.preventDefault();
+    state.split = document.querySelector('#ownership-enabled').checked; state.share = Math.min(100, Math.max(0, Math.round(Number(document.querySelector('#ownership-share').value) || 0)));
+    state.lens = state.split ? 'mine' : 'household'; dialog.close(); wealth(); announce(state.split ? 'Showing your share.' : 'Ownership split turned off.');
+  });
+}
+function retirementDialogBody(model) {
+  const { plan, result } = model, b = result.breakdown;
+  const top = Math.max(result.requiredNestEgg, ...result.points.map(point => point.balance), 1);
+  const x = i => i / Math.max(result.points.length - 1, 1) * 600, y = value => 170 - value / top * 155;
+  const line = result.points.map((point, i) => `${x(i).toFixed(1)},${y(point.balance).toFixed(1)}`).join(' ');
+  const chart = `<svg class="chart projection-chart" viewBox="0 0 600 180" preserveAspectRatio="none" role="img" aria-label="Projected savings from ${dollars(result.points[0].balance)} at age ${result.points[0].age} to ${dollars(result.projectedBalance)} at age ${result.laterRetirementAge}; goal ${dollars(result.requiredNestEgg)}"><line class="goal-line" x1="0" x2="600" y1="${y(result.requiredNestEgg)}" y2="${y(result.requiredNestEgg)}"/><polygon class="history-area" points="0,180 ${line} 600,180"/><polyline class="history-line" points="${line}"/></svg><div class="chart-axis"><span>Age ${result.points[0].age}</span><span>Goal ${compactDollars(result.requiredNestEgg)}</span><span>Age ${result.laterRetirementAge}</span></div>`;
+  const row = (label, value, sign = '') => value > 0.5 ? `<div class="definition"><span>${label}</span><strong>${sign}${dollars(value)}</strong></div>` : '';
+  return `<div class="retirement-status status-${result.status}"><span class="plan-icon status-${result.status}">${icon(statusIcon[result.status])}</span><div><small>${statusLabel[result.status]}</small><strong>${gapHeadline(result.gap)}</strong></div></div><div class="stats"><div><div class="stat-label">Projected at ${result.laterRetirementAge}</div><div class="stat-value">${compactDollars(result.projectedBalance)}</div></div><div><div class="stat-label">Your goal</div><div class="stat-value">${compactDollars(result.requiredNestEgg)}</div></div></div>${chart}<h3 class="dialog-subhead">How it adds up</h3>${row('Today’s savings grow to', b.currentBalance)}${row('Contributions add', b.contributions)}${row('Spending you’ll need', b.spending)}${row('Education costs', b.education)}${row('Healthcare before Medicare', b.healthcare)}${row('Social Security reduces the need by', b.socialSecurity, '−')}<h3 class="dialog-subhead">Your plan</h3><div class="definition"><span>Retirement savings today</span><strong>${dollars(model.balance)}</strong></div><div class="definition"><span>Age · retire at</span><strong>${plan.currentAge} · ${plan.targetRetirementAge}${plan.includesPartner && plan.spouseCurrentAge != null ? ` (partner ${plan.spouseCurrentAge} · ${plan.spouseTargetRetirementAge})` : ''}</strong></div><div class="definition"><span>Salary · contribution</span><strong>${dollars(plan.annualSalary)} · ${plan.contributionPercent}%</strong></div><div class="definition"><span>Yearly spending in retirement</span><strong>${dollars(plan.targetAnnualSpending)}</strong></div>`;
+}
+function showRetirement() {
+  const model = retirementModel();
+  if (state.liveData) {
+    if (!model.result) { openDialog('Plan your retirement', `<p class="subtle">${model.unreadable ? 'Your saved plan needs a quick review in the iPhone app before it can be shown here.' : 'Answer a short survey in the iPhone app to see whether you’re on track. Your plan will appear here once it syncs.'}</p>`); return; }
+    openDialog('Retirement', `${retirementDialogBody(model)}${model.partial ? '<p class="preview-note">Bank balances weren’t available, so only saved manual investment accounts are counted in today’s savings.</p>' : ''}<p class="note">Today’s dollars, ${Math.round(model.plan.realGrowthRate * 1000) / 10}% yearly growth after inflation, and the 4% rule. An estimate, not a guarantee. Edit your plan in the iPhone app.</p>`);
+    return;
+  }
+  const plan = state.retirement;
+  openDialog('Retirement', `${retirementDialogBody(model)}<h3 class="dialog-subhead">Try different numbers</h3><form id="retirement-form"><div class="form-grid">${formField('age', 'Current age', plan.currentAge, { min: 18, max: 89, step: 1 })}${formField('retirement-age', 'Retire at', plan.targetRetirementAge, { min: 19, max: 90, step: 1 })}${formField('retirement-balance', 'Retirement savings ($)', state.retirementBalance)}${formField('salary', 'Yearly salary ($)', plan.annualSalary)}${formField('contribution', 'Contribution (%)', plan.contributionPercent, { min: 0, max: 50, step: '.5' })}${formField('spending', 'Yearly spending in retirement ($)', plan.targetAnnualSpending, { min: 1 })}</div><p class="form-error" id="retirement-error" role="alert"></p><button class="button primary" type="submit">Update projection</button></form><p class="note">Sample plan using the app’s model: today’s dollars, 5% yearly growth after inflation, IRS contribution limits, Social Security from 67, and the 4% rule. An estimate, not a guarantee.</p>`);
+  document.querySelector('#retirement-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const form = event.currentTarget, read = name => Number(form.elements.namedItem(name).value);
+    const next = { ...plan, currentAge: read('age'), targetRetirementAge: read('retirement-age'), annualSalary: read('salary'), contributionPercent: read('contribution'), targetAnnualSpending: read('spending') };
+    const balance = read('retirement-balance');
+    const valid = Number.isInteger(next.currentAge) && Number.isInteger(next.targetRetirementAge) && next.currentAge >= 18 && next.targetRetirementAge > next.currentAge && next.targetRetirementAge <= 90
+      && [balance, next.annualSalary, next.targetAnnualSpending].every(value => Number.isFinite(value) && value >= 0 && value <= 1e9) && next.targetAnnualSpending > 0 && next.contributionPercent >= 0 && next.contributionPercent <= 50;
+    if (!valid) { document.querySelector('#retirement-error').textContent = 'Check the ages and amounts. Retirement must come after your current age, by 90.'; return; }
+    state.retirement = next; state.retirementBalance = balance; wealth(); showRetirement(); announce('Sample projection updated.');
+  });
+}
+function showDebt() {
+  const loans = debtLoans();
+  if (!loans.length) { openDialog('Simulate your debt payoff', `<p class="subtle">${state.liveData ? 'Add a loan in the iPhone app to see the interest you’ll pay and how extra payments help. Your loans will appear here once they sync.' : 'Add a loan to see interest paid and how to pay it off faster.'}</p>`); return; }
+  const portfolio = debtPortfolio(loans, today);
+  const loanCard = loan => {
+    const base = loanResult(loan, today);
+    const extra = state.liveData ? loan.savedExtraMonthlyPayment : state.debtExtra, lump = state.liveData ? loan.savedLumpSumPayment : 0;
+    const scenario = (extra > 0 || lump > 0) && !base.neverPaysOff && !base.isPaidOff ? payoffScenario(base, { extraMonthly: extra, lumpSum: lump }, today) : null;
+    const payoff = base.isPaidOff ? 'Paid off' : base.neverPaysOff ? 'Payment doesn’t cover the interest' : base.horizonExceeded ? 'Beyond the 100-year estimate' : `Paid off ${monthYear(base.payoffDate)}`;
+    return `<section class="loan-card"><div class="loan-head"><div><strong>${esc(loan.name)}</strong><small>${loanKindName(loan.kind)} · ${loan.annualInterestRate}% APR</small></div><strong>${dollars(base.currentBalance)}</strong></div><div class="definition"><span>Monthly payment${base.usedComputedPayment ? ' (estimated)' : ''}</span><strong>${dollars(base.payment)}</strong></div><div class="definition"><span>Payoff</span><strong>${payoff}</strong></div><div class="definition"><span>Interest remaining</span><strong>${dollars(base.interestRemaining)}</strong></div>${scenario ? `<div class="success-note">With ${extra > 0 ? `${dollars(extra)}/mo extra` : ''}${extra > 0 && lump > 0 ? ' and ' : ''}${lump > 0 ? `${dollars(lump)} now` : ''}: ${scenario.monthsSaved} month${scenario.monthsSaved === 1 ? '' : 's'} sooner · ${dollars(scenario.interestSaved)} less interest</div>` : ''}</section>`;
+  };
+  openDialog('Debt payoff', `<div class="stats debt-stats"><div><div class="stat-label">Owed</div><div class="stat-value">${compactDollars(portfolio.totalBalance)}</div></div><div><div class="stat-label">Monthly</div><div class="stat-value">${compactDollars(portfolio.monthlyTotal)}</div></div></div><p class="subtle">${debtSubline(portfolio)}.</p>${state.liveData ? '' : `<form id="debt-form" class="inline-form">${formField('debt-extra', 'Try an extra monthly payment ($)', state.debtExtra)}<button class="button" type="submit">Compare</button></form>`}${loans.map(loanCard).join('')}<p class="note">A fixed rate with monthly interest; the final payment is trimmed to the balance. No fees, new charges, or rate changes. ${state.liveData ? 'Saved extra payments come from the iPhone app, where loans are edited.' : 'Sample loans match the iPhone app’s demo.'}</p>`);
+  document.querySelector('#debt-form')?.addEventListener('submit', event => {
+    event.preventDefault(); const value = Number(document.querySelector('#debt-extra').value);
+    if (!Number.isFinite(value) || value < 0 || value > 1e7) return;
+    state.debtExtra = value; showDebt();
+  });
+}
+// ── Settings (mirrors SettingsView.swift's profile card and sections) ──
+function planBadge(billing) {
+  if (!billing) return { glyph: 'spark', label: 'Sample account' };
+  if (billing.hasAccess && billing.isPurchaser === false) return { glyph: 'person', label: 'Household plan' };
+  if (billing.hasAccess && billing.trialEndsAt && new Date(billing.trialEndsAt) > today) return { glyph: 'clock', label: 'Free Trial' };
+  if (billing.hasAccess) return { glyph: 'check', label: /annual|year/i.test(billing.productId || '') ? 'Annual' : 'Monthly' };
+  return { glyph: 'spark', label: 'No active plan' };
+}
+const settingsRow = (glyph, title, subtitle, attributes) => `<${attributes.startsWith('href') ? 'a' : 'button'} class="settings-row" ${attributes}><span class="settings-icon">${icon(glyph)}</span><span><strong>${title}</strong><small>${subtitle}</small></span>${chevron}</${attributes.startsWith('href') ? 'a' : 'button'}>`;
+function settings() {
+  const live = state.liveData, profile = live?.profile;
+  const name = live ? profile.user.display_name || 'Add your name' : 'Sample account';
+  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0].toUpperCase()).join('') || 'A';
+  const badge = planBadge(live?.billing);
+  const banks = live ? [...new Map(live.bankAccounts.map(account => [account.itemId, account.institution])).values()] : ['First Horizon', 'Apex Card'];
+  main.innerHTML = `<p class="intro">Your account, your data, and your preferences.</p><div class="settings-stack"><button class="card profile-card" data-action="manage-account"><span class="avatar" aria-hidden="true">${esc(initials)}</span><span><strong>${esc(name)}</strong><small>Account, plan, and household</small><span class="plan-badge">${icon(badge.glyph)}${badge.label}</span></span>${chevron}</button>
+<div class="section-label">EXPERIENCE</div><section class="card settings-card">${settingsRow(state.theme === 'light' ? 'moon' : 'sun', 'Appearance', `${state.theme === 'light' ? 'Light' : 'Dark'} · choose how Averlen looks in this browser`, 'data-theme-action')}${settingsRow('spark', 'Values & core spending', 'Set in the iPhone app for Mindful Mode reflections', 'data-action="values-info"')}</section>
+<div class="section-label">MONEY &amp; DATA</div><section class="card settings-card">${settingsRow('bank', 'Connected banks', live && live.banksUnavailable ? 'Couldn’t load bank connections right now' : banks.length ? `${banks.length} connected · ${esc(banks.slice(0, 2).join(', '))}${banks.length > 2 ? '…' : ''}` : 'No banks connected', 'data-action="banks-info"')}${settingsRow('activity', 'Categories', `${categories.length} categories · labels used across Activity and Trends`, 'data-action="categories-info"')}${settingsRow('arrowOut', 'Export your data', 'Download a portable copy of your saved records', 'data-action="manage-account"')}${live ? '' : settingsRow('repeat', 'Reset sample changes', 'Restore the original transactions, accounts, and plans', 'data-action="reset-sample"')}</section>
+<div class="section-label">SECURITY &amp; SUPPORT</div><section class="card settings-card">${settingsRow('shield', 'Saved data & account', 'Export, manage your plan, or delete your account', 'data-action="manage-account"')}${settingsRow('doc', 'Privacy policy', 'See how Averlen handles your information', 'href="../privacy.html" target="_blank" rel="noopener"')}${settingsRow('doc', 'Terms of service', 'Review the terms for using Averlen', 'href="../terms.html" target="_blank" rel="noopener"')}${settingsRow('spark', 'Help & feedback', 'Share an idea or tell us what is not working', 'href="../support.html" target="_blank" rel="noopener"')}</section>
+<button class="button sign-out" data-action="logout">Sign out</button><p class="settings-footer">${live ? 'Averlen for the web · Read-only access to your saved records' : 'Averlen web preview · Sample data, resets on reload'}</p></div>`;
+}
+function showSettingsInfo(kind) {
+  const live = state.liveData;
+  if (kind === 'values') { openDialog('Values & core spending', '<p class="subtle">Tell Averlen what you want your spending to support, and which costs are harder to change month to month. Mindful Mode uses these for reflection and context. It never scores you or creates a budget.</p><p class="note">Set these in the iPhone app under Settings → Values & Core Spending.</p>'); return; }
+  if (kind === 'categories') { openDialog('Categories', `<p class="subtle">The labels used across Activity and Trends.${live ? ' Edit names, colors, and rules in the iPhone app.' : ''}</p>${categories.map(category => `<div class="definition"><span class="category-chip"><span class="swatch" style="background:${category.color}"></span>${esc(category.name)}</span><strong>${category.excluded ? 'Excluded from totals' : category.transfer ? 'Transfers' : category.income ? 'Income' : 'Spending'}</strong></div>`).join('')}`); return; }
+  if (!live) { openDialog('Connected banks', '<p class="subtle">The sample connects to two fictional institutions, First Horizon and Apex Card. No real bank is connected in this preview.</p>'); return; }
+  const byItem = new Map(); for (const account of live.bankAccounts) { if (!byItem.has(account.itemId)) byItem.set(account.itemId, { name: account.institution, accounts: [] }); byItem.get(account.itemId).accounts.push(account); }
+  openDialog('Connected banks', `${live.banksUnavailable ? '<p class="preview-note">Bank connections couldn’t be loaded right now. Your saved records are unaffected.</p>' : byItem.size ? [...byItem.values()].map(bank => `<h3 class="dialog-subhead">${esc(bank.name)}</h3>${bank.accounts.map(account => `<div class="definition"><span>${esc(account.name)}${account.mask ? ` ••${esc(account.mask)}` : ''}</span><strong>${esc(bankGroup[account.type])}</strong></div>`).join('')}`).join('') : '<p class="subtle">No banks are connected to your household.</p>'}<p class="note">Connect, reconnect, or remove banks in the iPhone app. The website only reads balances.</p>`);
+}
+
 function resetSample() {
   rows.splice(0, rows.length, ...makeDemo(today));
   wealthAccounts.splice(0, wealthAccounts.length, ...accounts.map(account => ({ ...account })));
-  state.retirement = { ...defaultRetirement }; state.debt = { ...defaultDebt };
-  state.lens = 'household'; state.share = 50; state.query = ''; state.category = ''; state.type = '';
+  Object.assign(state, samplePlanning()); state.query = ''; state.category = ''; state.type = '';
 }
 function login() {
   if (isLivePage) { liveLogin(); return; }
   main.innerHTML = `<div class="auth-shell"><section class="auth-story"><a href="#login" class="brand"><img src="../averlen-logo.png" width="40" height="40" alt=""><span>Averlen</span></a><span class="overline">YOUR SPACE FOR CLARITY</span><h2>A clearer picture.<br>A little more possibility.</h2><p>See where your money goes, share the bigger picture, and make room for what comes next.</p><div class="auth-illustration" aria-hidden="true"><span class="overline">THE BIGGER PICTURE</span><div class="illustration-number">Room to move forward.</div><div class="illustration-bars"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><span class="subtle">Spend with awareness. Plan with perspective.</span></div></section><section class="auth-form card"><span class="overline">WELCOME TO AVERLEN</span><h1>Welcome back.</h1><p class="subtle">Your financial picture, on a bigger screen.</p>${state.deletedPreview ? '<p class="success-note" role="status">Deletion preview complete. The sample session was cleared. No real account or bank connection was changed.</p>' : ''}<div class="preview-note">Sign-in design preview. Live authentication is not connected; please use the sample account below.</div><button class="button apple-button" disabled>Continue with Apple</button><div class="auth-divider">or use email</div><label for="login-email">Email</label><input id="login-email" type="email" placeholder="you@example.com" disabled autocomplete="off"><label for="login-password">Password</label><input id="login-password" type="password" placeholder="Your password" disabled autocomplete="off"><div class="login-assistance"><button class="text-button" data-action="reset-password-info">Forgot password?</button></div><button class="button" disabled>Sign in</button><button class="button primary" data-action="start-demo">Explore sample account →</button><p class="note">Already use Averlen on iPhone? The live web version will use your existing account. No additional account is needed.</p><div class="auth-links"><a href="#account">Saved data & account</a><a href="https://candorfinance.app/support.html">Support</a><button class="text-button" data-theme-action>Appearance</button></div></section></div>`;
-}
-function settings() {
-  if (state.liveData) { liveSettings(); return; }
-  main.innerHTML = `<p class="intro">Your account, your data, and your preferences.</p><div class="grid"><section class="card">${header('Account', 'Sample account · signed in for this preview')}<button class="settings-row" data-action="manage-account"><span><strong>Manage account</strong><small>Saved data, subscription, and account deletion</small></span><span>→</span></button><button class="settings-row" data-action="logout"><span><strong>Sign out</strong><small>Clear this sample session and return to sign-in</small></span><span>→</span></button></section><section class="card">${header('Appearance & preview')}<button class="settings-row" data-theme-action><span><strong>Appearance</strong><small>Switch between light and dark</small></span><span>→</span></button><button class="settings-row" data-action="reset-sample"><span><strong>Reset sample changes</strong><small>Restore the original transactions, accounts, and planning inputs</small></span><span>↺</span></button></section><section class="card insight full"><span class="insight-icon">${icon('spark')}</span><div><h3>Sample data, throughout</h3><p>Login, planning, manual accounts, and deletion can be explored here. Nothing connects to a real bank or changes a real account. Sample edits reset on reload.</p></div></section></div>`;
 }
 function account() {
   if (state.liveData) { liveAccount(); return; }
@@ -215,36 +432,6 @@ function openAbout() {
 function formField(id, label, value, { min = 0, max = 1000000000, step = '.01', type = 'number' } = {}) {
   return `<div class="form-field"><label for="${id}">${label}</label><input id="${id}" name="${id}" type="${type}" value="${esc(value)}" min="${min}" max="${max}" step="${step}" required></div>`;
 }
-function showRetirement() {
-  const plan = state.retirement;
-  openDialog('Plan your retirement', `<p class="subtle">Try a sample plan in today’s dollars.</p><form id="retirement-form"><div class="form-grid">${formField('age', 'Current age', plan.age, { min: 18, max: 100, step: 1 })}${formField('retirement-age', 'Retirement age', plan.retirementAge, { min: 18, max: 100, step: 1 })}${formField('retirement-balance', 'Retirement savings ($)', plan.balanceCents / 100)}${formField('monthly-contribution', 'Monthly contribution ($)', plan.monthlyCents / 100)}${formField('real-return', 'Annual return after inflation (%)', plan.realReturn, { min: -10, max: 15, step: '.1' })}</div><p class="form-error" id="retirement-error" role="alert"></p><button class="button primary" type="submit">Update projection</button></form><div id="retirement-result" class="planner-result" role="status"></div><p class="note">Illustration only. A fixed after-inflation return is applied annually, with contributions added at each year’s end. This does not model taxes, benefits, healthcare, or changing market returns.</p>`);
-  const update = () => {
-    try {
-      const form = document.querySelector('#retirement-form');
-      const read = name => Number(form.elements.namedItem(name).value);
-      const next = { age: read('age'), retirementAge: read('retirement-age'), balanceCents: Math.round(read('retirement-balance') * 100), monthlyCents: Math.round(read('monthly-contribution') * 100), realReturn: read('real-return') };
-      const result = retirementEstimate(next); state.retirement = next;
-      document.querySelector('#retirement-error').textContent = '';
-      document.querySelector('#retirement-result').innerHTML = `<div class="overline">Projected at age ${next.retirementAge}</div><div class="planner-number">${money(result.cents)}</div><p class="subtle">${money(result.contributionsCents)} contributed over ${next.retirementAge - next.age} years, plus the modeled growth of your starting balance and contributions.</p>`;
-    } catch (error) { document.querySelector('#retirement-error').textContent = error.message; document.querySelector('#retirement-result').innerHTML = ''; }
-  };
-  document.querySelector('#retirement-form').addEventListener('submit', event => { event.preventDefault(); update(); wealth(); });
-  update();
-}
-function showDebt() {
-  const debt = state.debt;
-  openDialog('Simulate your debt payoff', `<p class="subtle">Compare a baseline payment with extra payments. These are example loan terms.</p><form id="debt-form"><div class="form-grid">${formField('debt-balance', 'Balance ($)', debt.balanceCents / 100)}${formField('debt-apr', 'Annual interest rate (%)', debt.apr, { min: 0, max: 100, step: '.01' })}${formField('debt-payment', 'Monthly payment ($)', debt.paymentCents / 100)}${formField('debt-extra', 'Extra each month ($)', debt.extraCents / 100)}${formField('debt-lump', 'One-time payment now ($)', debt.lumpSumCents / 100)}</div><button class="button primary" type="submit">Compare payoff</button></form><div id="debt-result" class="planner-result" role="status"></div><p class="note">A fixed annual rate divided into monthly interest; the final payment is trimmed to the balance. No fees, new purchases, or rate changes. This illustration does not change your account balances.</p>`);
-  const update = () => {
-    const form = document.querySelector('#debt-form');
-    const read = name => Number(form.elements.namedItem(name).value);
-    const next = { balanceCents: Math.round(read('debt-balance') * 100), apr: read('debt-apr'), paymentCents: Math.round(read('debt-payment') * 100), extraCents: Math.round(read('debt-extra') * 100), lumpSumCents: Math.round(read('debt-lump') * 100) };
-    const base = amortize({ ...next, extraCents: 0, lumpSumCents: 0 }), extra = amortize(next); state.debt = next;
-    const resultLine = result => result.paysOff ? `${result.months} month${result.months === 1 ? '' : 's'} · ${money(result.interestCents)} interest` : 'Payment does not clear the balance within 100 years.';
-    document.querySelector('#debt-result').innerHTML = `<div class="definition"><span>Baseline</span><strong>${resultLine(base)}</strong></div><div class="definition"><span>With extra payments</span><strong>${resultLine(extra)}</strong></div>${base.paysOff && extra.paysOff ? `<div class="success-note">${Math.max(0, base.months - extra.months)} months sooner · ${money(Math.max(0, base.interestCents - extra.interestCents))} less interest</div>` : '<p class="note">The payment needs to cover interest and reduce principal to reach a payoff date.</p>'}`;
-  };
-  document.querySelector('#debt-form').addEventListener('submit', event => { event.preventDefault(); update(); wealth(); });
-  update();
-}
 function showManualAccount(account = null) {
   const types = ['Cash', 'Investments', 'Credit Cards', 'Loans', 'Other Assets', 'Other Liabilities'];
   openDialog(account ? 'Edit manual account' : 'Add a manual account', `<p class="subtle">Add something that helps complete the sample picture.</p><form id="manual-account-form"><div class="form-field"><label for="manual-name">Account name</label><input id="manual-name" name="manual-name" maxlength="80" value="${esc(account?.name || '')}" placeholder="e.g. Home value" required></div><div class="form-grid"><div class="form-field"><label for="manual-type">Account type</label><select id="manual-type">${types.map(type => `<option ${type === account?.type ? 'selected' : ''}>${type}</option>`).join('')}</select></div>${formField('manual-balance', 'Balance ($)', (account?.cents || 0) / 100)}</div><p class="form-error" id="manual-error" role="alert"></p><div class="button-row"><button type="submit" class="button primary">${account ? 'Save sample account' : 'Add sample account'}</button>${account ? '<button type="button" class="button danger" id="remove-manual">Remove sample account</button>' : ''}</div></form><p class="note">Enter positive balances for assets and liabilities. These sample changes reset on reload and never sync to your real account.</p>`);
@@ -257,16 +444,6 @@ function showManualAccount(account = null) {
     dialog.close(); wealth(); announce('Sample account saved. Net worth updated.');
   });
   document.querySelector('#remove-manual')?.addEventListener('click', () => { wealthAccounts.splice(wealthAccounts.indexOf(account), 1); dialog.close(); wealth(); announce('Sample manual account removed.'); });
-}
-function showAccount(id) {
-  const account = wealthAccounts.find(row => row.id === id);
-  if (!account) return;
-  if (account.manual) { showManualAccount(account); return; }
-  openDialog(account.name, `<p class="subtle">${esc(account.institution)} · ••${account.mask}</p><div class="dialog-value">${money(account.cents)}</div><div class="definition"><span>Type</span><strong>${account.type}</strong></div><div class="definition"><span>Net worth</span><strong>${account.asset ? 'Asset' : 'Liability'}</strong></div><p class="note">The full account balance is shown here. ${state.lens === 'mine' ? `Your ${state.share}% display share is ${money(Math.round(account.cents * state.share / 100))}. ` : ''}This is a synthetic account; no bank is connected.</p>`);
-}
-function showOwnership() {
-  openDialog('Your ownership split', `<p class="subtle">Choose your share of the household picture. This is a display view; it does not alter balances or history.</p><form id="ownership-form">${formField('ownership-share', 'Your share of each account (%)', state.share, { min: 0, max: 100, step: 1 })}<p class="note">This preview applies one percentage to every account. Household view always shows the full balances.</p><button class="button primary" type="submit">Show my share</button></form>`);
-  document.querySelector('#ownership-form').addEventListener('submit', event => { event.preventDefault(); state.share = Number(document.querySelector('#ownership-share').value); state.lens = 'mine'; dialog.close(); wealth(); });
 }
 function showDeletion() {
   if (state.liveData) { liveAccountAction('delete'); return; }
@@ -303,7 +480,7 @@ function showMonthlyReport() {
 function clearLiveRecords() {
   rows.length = 0; categories.length = 0; wealthAccounts.length = 0; wealthHistory.length = 0; months.length = 0;
   state.liveData = null; state.session = false; state.query = ''; state.category = ''; state.type = '';
-  state.retirement = { ...defaultRetirement }; state.debt = { ...defaultDebt }; state.lens = 'household'; state.share = 50;
+  Object.assign(state, samplePlanning());
   if (dialog.open) dialog.close();
   document.querySelector('#dialog-body').replaceChildren();
 }
@@ -368,19 +545,10 @@ function liveLogin() {
     catch (error) { const target = document.querySelector('#login-error'); if (target) target.textContent = liveMessage(error); }
   });
 }
-function liveSettings() {
-  main.innerHTML = `<p class="intro">Your account and saved information, connected to the iPhone app.</p><div class="grid"><section class="card">${header('Account', state.liveData.profile.user.display_name || 'Your Averlen account')}<button class="settings-row" data-action="manage-account"><span><strong>Manage account</strong><small>Export your data, manage your plan, or delete your account</small></span><span>→</span></button><button class="settings-row" data-action="logout"><span><strong>Sign out</strong><small>Clear financial information from this browser session</small></span><span>→</span></button></section><section class="card">${header('Saved records')}<button class="settings-row" data-action="reload-live"><span><strong>Reload saved records</strong><small>Read the latest records synced from the iPhone app</small></span><span>↻</span></button><button class="settings-row" data-theme-action><span><strong>Appearance</strong><small>Switch light and dark</small></span><span>→</span></button></section></div>`;
-}
 function liveAccount() {
   const data = state.liveData, profile = data.profile;
   const blocked = profile.household.is_owner && profile.members.length > 1;
   main.innerHTML = `<p class="intro">Manage your Averlen account and saved records.</p><div class="grid"><section class="card">${header('Your account')}<div class="definition"><span>Name</span><strong>${esc(profile.user.display_name || 'Your account')}</strong></div><div class="definition"><span>Email</span><strong class="account-email">${esc(profile.user.email || 'Apple account')}</strong></div><div class="definition"><span>Household</span><strong>${esc(profile.household.name || 'Your household')}</strong></div><div class="definition"><span>Role</span><strong>${profile.household.is_owner ? 'Owner' : 'Member'} · ${profile.members.length} member${profile.members.length === 1 ? '' : 's'}</strong></div><div class="button-row"><button class="button" data-action="export-sample">Export my data</button><button class="button" data-action="logout">Sign out</button></div></section><section class="card">${header('Plan & access')}<p class="subtle">${data.billing.hasAccess ? 'Your household currently has access through its Averlen plan.' : 'An active plan was not confirmed. Your saved records, export, and account deletion remain available.'}</p><p class="note">This first web version is read-only. Manage or restore purchases in the iPhone app. Deleting your account does not cancel an App Store subscription.</p><div class="button-row"><a class="button" href="https://apps.apple.com/account/subscriptions" target="_blank" rel="noopener">Manage Apple subscription ↗</a></div></section><section class="card danger-zone full">${header('Delete account')}<p class="subtle">${blocked ? 'You own a shared household. Transfer ownership to your partner in the iPhone app before deleting your account. Their account and data must stay available.' : 'Your account and its Averlen data will be permanently deleted. Your identity must be confirmed first. Bank disconnection is queued by the server as part of deletion.'}</p><div class="button-row"><button class="button danger" data-action="delete-account" ${blocked ? 'disabled' : ''}>${blocked ? 'Transfer ownership first' : 'Delete my account'}</button></div></section></div>`;
-}
-function savedWealth() {
-  const latest = wealthHistory.at(-1);
-  const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - state.historyWeeks * 7, 12);
-  const history = wealthHistory.filter(point => point.date >= localDateKey(cutoff));
-  main.innerHTML = `<p class="intro">Your saved household picture, as last synced from the iPhone app.</p><div class="grid"><section class="card hero">${latest ? `<div class="overline">Last saved net worth · ${dateLabel(latest.date)}</div><div class="hero-number">${money(latest.cents)}</div><div class="stats"><div><div class="stat-label">Assets</div><div class="stat-value">${money(latest.assets)}</div></div><div><div class="stat-label">Liabilities</div><div class="stat-value">${money(latest.liabilities)}</div></div></div>` : '<h2>No saved net worth snapshot yet</h2><p class="note">Open Wealth in the iPhone app and let it sync to build your saved history.</p>'}</section><section class="card">${header('Saved balances')}<p class="subtle">Net worth snapshots include saved bank and manual balances. This page does not refresh banks or create a new snapshot.</p><p class="note">Retirement plans, debt tracking, and account editing remain in the iPhone app in this first connected web version.</p><button class="button" data-action="reload-live">Reload saved records</button></section><section class="card full">${header('Net worth history', 'Full household totals, including saved manual balances', `<div class="segmented">${[[4, '1M'], [13, '3M'], [26, '6M']].map(([weeks, label]) => `<button data-history="${weeks}" aria-pressed="${state.historyWeeks === weeks}">${label}</button>`).join('')}</div>`)}${history.length >= 2 ? historyChart(history) : empty('Not enough saved snapshots in this period yet.')}</section><section class="card full">${header('Manual accounts', 'Stored values from the iPhone app')}${wealthAccounts.map(account => `<div class="balance-row"><span class="category-icon" style="--category-color:var(--green)">${icon('bank')}</span><span><strong>${esc(account.name)}</strong><small>${account.asset ? 'Asset' : 'Liability'}</small></span><strong>${money(account.cents)}</strong></div>`).join('') || empty('No saved manual accounts.')}</section></div>`;
 }
 async function liveSignOut() {
   try { await liveConnection?.signOut(); navigate('login'); }
@@ -412,7 +580,7 @@ function downloadJson(data, filename) {
 document.querySelector('#month').innerHTML = months.map(month => `<option value="${month}">${monthLabel(month)}</option>`).join('');
 document.querySelector('#month').value = state.month;
 document.querySelector('#month').addEventListener('change', event => { state.month = event.target.value; render(); announce(`Showing ${monthLabel(state.month)}.`); });
-document.querySelector('#theme-toggle').addEventListener('click', () => { state.theme = state.theme === 'light' ? 'dark' : 'light'; setTheme(); });
+document.querySelector('#theme-toggle').addEventListener('click', () => { state.theme = state.theme === 'light' ? 'dark' : 'light'; setTheme(); if (state.route === 'settings') settings(); });
 document.querySelector('#about-preview').addEventListener('click', openAbout);
 document.querySelector('#close-dialog').addEventListener('click', () => dialog.close());
 dialog.addEventListener('cancel', event => { if (dialog.dataset.busy === 'true') event.preventDefault(); });
@@ -430,6 +598,7 @@ document.addEventListener('click', event => {
       'reset-sample': () => { if (isLivePage) { void liveConnection?.refresh(); return; } resetSample(); render(); announce('Sample changes reset.'); },
       'monthly-report': showMonthlyReport,
       retirement: showRetirement, debt: showDebt, ownership: showOwnership,
+      'values-info': () => showSettingsInfo('values'), 'banks-info': () => showSettingsInfo('banks'), 'categories-info': () => showSettingsInfo('categories'),
       'add-account': () => showManualAccount(), 'delete-account': showDeletion, 'export-sample': exportSample,
       'reset-password-info': () => openDialog('Reset your password', '<p class="subtle">The live website will send a reset link to the email on your Averlen account. Email delivery is not connected in this preview, and no message has been sent.</p>'),
     };
@@ -437,8 +606,6 @@ document.addEventListener('click', event => {
   }
   const lens = event.target.closest('[data-lens]');
   if (lens) { state.lens = lens.dataset.lens; wealth(); }
-  const history = event.target.closest('[data-history]');
-  if (history) { state.historyWeeks = Number(history.dataset.history); wealth(); }
   const category = event.target.closest('[data-category]');
   if (category) {
     if (dialog.open) dialog.close();
@@ -457,7 +624,7 @@ document.addEventListener('click', event => {
   if (accountButton) showAccount(accountButton.dataset.account);
   const monthButton = event.target.closest('[data-month]');
   if (monthButton) { state.month = monthButton.dataset.month; document.querySelector('#month').value = state.month; render(); announce(`Showing ${monthLabel(state.month)}.`); }
-  if (event.target.closest('[data-theme-action]')) { state.theme = state.theme === 'light' ? 'dark' : 'light'; setTheme(); }
+  if (event.target.closest('[data-theme-action]')) { state.theme = state.theme === 'light' ? 'dark' : 'light'; setTheme(); if (state.route === 'settings') settings(); }
 });
 function route() {
   const destination = location.hash.slice(1);

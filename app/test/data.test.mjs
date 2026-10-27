@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeSnapshot, cents } from '../data.js';
+import { normalizeSnapshot, normalizeBankAccounts, cents } from '../data.js';
 import { fixture, householdId } from './fixtures.mjs';
 
 test('decimal amounts preserve cents and reject ambiguous financial values', () => {
@@ -59,4 +59,26 @@ test('wrapped preference values match the iOS wire format; a false toggle stays 
   data.payload.changes.user_preferences.push({ id: 'pref', household_id: householdId, pref_key: 'candor_include_investments', pref_value: { v: false } });
   const normalized = normalizeSnapshot(data.profile, data.billing, data.payload);
   assert.equal(normalized.transactions.find(row => row.id === 'investment-tx').excluded, true);
+});
+
+test('saved planning preferences are unwrapped for the Wealth tab', () => {
+  const data = fixture();
+  const pref = (key, v) => ({ id: key, household_id: data.payload.household_id, user_id: null, pref_key: key, pref_value: { v } });
+  data.payload.changes.user_preferences = [
+    pref('candor_retirement_plan', { currentAge: 40, targetRetirementAge: 65, targetAnnualSpending: 50000 }),
+    pref('candor_debt_loans', [{ name: 'Car' }]), pref('candor_ownership_split', { isEnabled: true, mode: 'even' }),
+    pref('candor_account_nicknames', { 'acct-1': 'Joint' }), pref('candor_hide_idle_accounts', true),
+  ];
+  data.payload.changes.manual_accounts[0].icon = 'chart.line.uptrend.xyaxis';
+  const result = normalizeSnapshot(data.profile, data.billing, data.payload);
+  assert.equal(result.plans.retirement.currentAge, 40);
+  assert.equal(result.plans.loans[0].name, 'Car');
+  assert.equal(result.plans.ownership.mode, 'even');
+  assert.deepEqual(result.plans.nicknames, { 'acct-1': 'Joint' });
+  assert.equal(result.plans.hideIdle, true);
+  assert.equal(result.accounts[0].icon, 'chart.line.uptrend.xyaxis');
+});
+test('malformed bank balances are rejected rather than shown', () => {
+  assert.throws(() => normalizeBankAccounts([{ item: { item_id: 'i' }, response: { accounts: [{ id: 'a', type: 'depository', balances: { current: '12' } }] } }]), /INVALID_BALANCES/);
+  assert.throws(() => normalizeBankAccounts([{ item: {}, response: { accounts: [] } }]), /INVALID_BALANCES/);
 });

@@ -13,8 +13,33 @@ async function setup(data = fixture(), overrides = {}) {
 }
 test('existing-account loading only reads saved-data endpoints and uses no-store authenticated requests', async () => {
   const { server, connection } = await setup();
-  assert.deepEqual(server.requests.map(row => row.path), ['/api/auth/me', '/api/billing/status', '/api/sync/pull']);
-  assert.ok(server.requests.every(row => row.method === 'GET' && row.cache === 'no-store' && row.credentials === 'omit' && row.headers.Authorization.startsWith('Bearer test-token')));
+  assert.deepEqual(server.requests.map(row => row.path), ['/api/auth/me', '/api/billing/status', '/api/sync/pull', '/list_connected_accounts', '/get_balances']);
+  assert.ok(server.requests.every(row => row.cache === 'no-store' && row.credentials === 'omit' && row.headers.Authorization.startsWith('Bearer test-token')));
+  assert.ok(server.requests.slice(0, 3).every(row => row.method === 'GET'));
+  // Balance reads are POSTs only because the server routes take item_id in a JSON body.
+  assert.deepEqual(server.requests.slice(3).map(row => [row.method, row.headers['Content-Type'], row.body]), [['POST', 'application/json', {}], ['POST', 'application/json', { item_id: 'item-1' }]]);
+  connection.dispose();
+});
+test('bank balances load read-only and match the app\'s asset and liability buckets', async () => {
+  const { events, connection } = await setup();
+  const data = events.at(-1).data;
+  assert.equal(data.banksUnavailable, null);
+  assert.deepEqual(data.bankAccounts.map(account => [account.id, account.asset, account.balance, account.institution]), [['acct-checking', true, 2500.5, 'Example Bank'], ['acct-card', false, 420.25, 'Example Bank']]);
+  connection.dispose();
+});
+test('no plan means no bank balance requests', async () => {
+  const { server, events, connection } = await setup(fixture({ hasAccess: false }));
+  assert.ok(!server.requests.some(row => ['/list_connected_accounts', '/get_balances'].includes(row.path)));
+  assert.deepEqual(events.at(-1).data.bankAccounts, []);
+  connection.dispose();
+});
+test('a failed bank read keeps saved records available', async () => {
+  const data = fixture(); data.balances = {};
+  const { events, connection } = await setup(data);
+  assert.equal(events.at(-1).phase, 'ready');
+  assert.equal(events.at(-1).data.transactions.length, 2);
+  assert.deepEqual(events.at(-1).data.bankAccounts, []);
+  assert.ok(events.at(-1).data.banksUnavailable);
   connection.dispose();
 });
 test('sign-out clears ready state before awaiting Firebase completion', async () => {

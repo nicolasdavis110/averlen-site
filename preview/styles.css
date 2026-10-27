@@ -57,3 +57,98 @@
 .day-header{display:flex;justify-content:space-between;gap:12px;padding:14px 0 6px;font-size:11px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--line)}
 .category-icon{border-radius:50%}
 @media(max-width:700px){.stats{gap:10px}.stat-tile{padding:14px}.stat-tile .stat-value{font-size:19px}.bars{gap:5px;height:200px;--plot:157px}.bar-month{font-size:9px}.attention{padding:18px}.comparison-label{display:none}}
+/* iPhone-parity Wealth and Settings (WealthView / SettingsView). */
+:root{--negative:#b4533f;--negative-wash:#f7e7e2;--positive-wash:#e4f1ea}
+:root[data-theme=dark]{--negative:#ec8f79;--negative-wash:#2a1814;--positive-wash:#13251c}
+.wealth-grid{grid-template-columns:minmax(0,1fr);max-width:880px}
+.section-label{font-size:10px;font-weight:650;letter-spacing:1.4px;color:var(--muted);margin:10px 0 -10px}
+.section-label small{display:block;font-size:10px;letter-spacing:0;font-weight:500;margin-top:4px}
+.wealth-hero{text-align:center;display:grid;justify-items:center;gap:4px}
+.wealth-hero-top{display:flex;justify-content:space-between;align-items:flex-start;width:100%;text-align:left;gap:12px}
+.wealth-hero-top .overline{font-size:10px;font-weight:700;letter-spacing:1.4px;color:var(--muted)}
+.wealth-hero-top small{display:block;margin-top:4px;font-size:11px}
+.wealth-hero .hero-number{font-size:46px;margin:18px 0 8px;font-variant-numeric:tabular-nums}
+.share-pill{display:inline-flex;align-items:center;gap:5px;border:0;border-radius:9px;padding:7px 11px;background:var(--wash);color:var(--green);font-size:12px;font-weight:650;white-space:nowrap}
+.share-pill svg{width:13px;height:13px;stroke-width:2.2}
+.change-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:11px;font-weight:650;border:1px solid var(--line);color:var(--muted);background:var(--card)}
+.change-badge.up,.change-chip.up{color:var(--green);background:var(--positive-wash);border-color:color-mix(in srgb,var(--green) 20%,transparent)}
+.change-badge.down,.change-chip.down{color:var(--negative);background:var(--negative-wash);border-color:color-mix(in srgb,var(--negative) 20%,transparent)}
+.change-chip{font-size:12px;font-weight:650;padding:5px 9px;border-radius:999px;color:var(--muted);background:var(--bg);border:1px solid transparent}
+.metric-pills{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;margin-top:22px}
+.metric-pill{text-align:left;padding:13px 15px;border-radius:14px;background:var(--bg)}
+.metric-pill span{display:block;font-size:12px;font-weight:650}
+.metric-pill strong{display:block;font-size:16px;font-weight:650;margin-top:6px;font-variant-numeric:tabular-nums}
+.metric-pill.asset{color:var(--green)}.metric-pill.liability{color:var(--negative)}
+.lens-toggle{margin-top:16px}
+.history-wrap{position:relative}
+.history-chart{display:block;width:100%;height:180px;overflow:visible;touch-action:pan-y;cursor:crosshair}
+.history-line{fill:none;stroke:var(--green);stroke-width:2.4;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}
+.history-area{fill:url(#wealth-area);stroke:none}
+.projection-chart .history-area{fill:color-mix(in srgb,var(--green) 12%,transparent)}
+.zero-rule,.goal-line{stroke:var(--muted);stroke-dasharray:4 3;opacity:.5;vector-effect:non-scaling-stroke}
+.goal-line{stroke:var(--amber);opacity:.8}
+.scrub-rule{stroke:var(--muted);stroke-dasharray:3 3;vector-effect:non-scaling-stroke}.scrub-rule[hidden]{display:none}
+.history-dot{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px var(--card);pointer-events:none}
+#history-title{min-height:44px}
+.scrub-value{display:block;font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.projection-chart{display:block;width:100%;height:150px;margin-top:22px}
+.plan-cards{display:grid;gap:12px}
+.plan-card,.notice-card{width:100%;display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:14px;text-align:left;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:20px;padding:18px 20px}
+.plan-card:hover,.ledger-row:hover,.settings-row:hover,.profile-card:hover{background:color-mix(in srgb,var(--bg) 55%,var(--card))}
+.plan-card strong,.notice-card strong{display:block;font-size:15px;font-weight:700}
+.plan-card small,.notice-card .subtle{display:block;font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5}
+.plan-card .plan-kicker{margin:0 0 4px;font-weight:600}
+.plan-icon{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--wash);color:var(--green)}
+.plan-icon svg{width:19px;height:19px}
+.plan-icon.status-needsAttention{background:var(--amber-wash);color:var(--amber)}
+.plan-icon.status-offTrack{background:var(--negative-wash);color:var(--negative)}
+b.status-onTrack{color:var(--green)}b.status-needsAttention{color:var(--amber)}b.status-offTrack{color:var(--negative)}
+.row-chevron{color:var(--muted);font-size:20px;line-height:1;opacity:.6}
+.notice-card{grid-template-columns:44px minmax(0,1fr) auto;padding:20px 22px}
+.notice-card p{margin:0}
+.ledger{padding:0;overflow:hidden}
+.ledger-group+.ledger-group{border-top:1px solid var(--line)}
+.ledger-head{display:flex;align-items:center;gap:9px;padding:13px 22px;border-bottom:1px solid var(--line);font-size:12px;font-weight:650;color:var(--muted)}
+.ledger-head svg{width:15px;height:15px}
+.ledger-head strong{margin-left:auto;font-variant-numeric:tabular-nums}
+.ledger-group.asset .ledger-head svg,.ledger-group.asset .ledger-head strong,.ledger-group.asset .ledger-icon{color:var(--green)}
+.ledger-group.liability .ledger-head svg,.ledger-group.liability .ledger-head strong,.ledger-group.liability .ledger-icon{color:var(--negative)}
+.ledger-row{width:100%;display:grid;grid-template-columns:36px minmax(0,1fr) auto 14px;align-items:center;gap:12px;padding:11px 22px;background:none;border:0;color:var(--text);text-align:left}
+.ledger-row+.ledger-row{border-top:1px solid var(--line)}
+.ledger-icon{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:currentColor}
+.ledger-icon svg{width:15px;height:15px}
+.ledger-group.asset .ledger-icon{background:var(--positive-wash)}.ledger-group.liability .ledger-icon{background:var(--negative-wash)}
+.ledger-name{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ledger-row>strong{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+.toggle-row{display:flex;align-items:center;gap:10px;font-size:13px;margin:4px 0 14px}
+.toggle-row input{width:18px;height:18px;accent-color:var(--green)}
+.retirement-status{display:flex;align-items:center;gap:14px}
+.retirement-status small{display:block;font-size:12px;font-weight:650;color:var(--muted)}
+.retirement-status strong{display:block;font-size:20px;margin-top:2px}
+.retirement-status.status-onTrack small{color:var(--green)}.retirement-status.status-needsAttention small{color:var(--amber)}.retirement-status.status-offTrack small{color:var(--negative)}
+.dialog-subhead{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin:26px 0 4px}
+.loan-card{border:1px solid var(--line);border-radius:16px;padding:6px 18px 14px;margin-top:16px}
+.loan-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0 6px}
+.loan-head small{display:block;color:var(--muted);font-size:11px;margin-top:4px}
+.loan-card .success-note{margin-top:10px}
+.debt-stats{margin-top:6px;padding-top:0;border:0}
+.inline-form{display:flex;align-items:flex-end;gap:12px;margin-top:18px}.inline-form .form-field{flex:1;margin:0}
+.settings-stack{display:grid;gap:16px;max-width:720px}
+.profile-card{width:100%;display:grid;grid-template-columns:64px minmax(0,1fr) auto;align-items:center;gap:16px;text-align:left;color:var(--text)}
+.avatar{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;background:var(--wash);color:var(--green);font-size:22px;font-weight:700}
+.profile-card strong{display:block;font-size:19px}
+.profile-card small{display:block;color:var(--muted);font-size:12px;margin-top:3px}
+.plan-badge{display:inline-flex;align-items:center;gap:5px;margin-top:9px;padding:4px 9px;border-radius:999px;background:var(--wash);color:var(--green);font-size:11px;font-weight:650}
+.plan-badge svg{width:12px;height:12px;stroke-width:2.2}
+.settings-card{padding:4px 0;overflow:hidden}
+.settings-card .settings-row{width:100%;display:grid;grid-template-columns:36px minmax(0,1fr) 14px;align-items:center;gap:14px;padding:13px 22px;background:none;border:0;color:var(--text);text-align:left;text-decoration:none}
+.settings-card .settings-row+.settings-row{border-top:1px solid var(--line)}
+.settings-row strong{display:block;font-size:14px;font-weight:600}
+.settings-row small{display:block;font-size:12px;color:var(--muted);margin-top:3px;line-height:1.45}
+.settings-icon{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--bg);color:var(--green)}
+.settings-icon svg{width:17px;height:17px}
+.sign-out{width:100%;padding:15px;color:var(--negative);margin-top:6px}
+.settings-footer{text-align:center;color:var(--muted);font-size:11px;margin:0}
+.category-chip{display:inline-flex;align-items:center;gap:9px;color:var(--text)}
+.swatch{width:10px;height:10px;border-radius:50%}
+@media(max-width:700px){.wealth-hero .hero-number{font-size:40px}.plan-card,.notice-card{padding:16px;gap:12px}.ledger-head,.ledger-row,.settings-card .settings-row{padding-left:16px;padding-right:16px}.notice-card{grid-template-columns:44px minmax(0,1fr)}.notice-card>.button{grid-column:1/-1}.metric-pills{gap:8px}.inline-form{flex-wrap:wrap}}
