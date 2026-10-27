@@ -3,634 +3,485 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Averlen — Track spending, share finances, plan ahead.</title>
-    <meta name="description" content="Averlen helps you track spending, share finances with a partner, and plan ahead. Connect supported accounts, explore trends, and use flexible tools without a rigid budget.">
-    <meta name="theme-color" content="#5FAF87">
-    <link rel="icon" type="image/png" href="averlen-logo.png">
-    <link rel="apple-touch-icon" href="averlen-logo.png">
-
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'; object-src 'none'">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <title>Averlen — See where your money goes. Plan what comes next.</title>
+    <meta name="description" content="Averlen for iPhone helps you track spending, share finances with a partner, and plan ahead — with clear insight and no rigid budget to maintain.">
+    <meta name="theme-color" content="#0A0D11">
+    <meta name="color-scheme" content="dark">
+    <meta name="apple-itunes-app" content="app-id=6792603482">
+    <link rel="icon" type="image/png" sizes="64x64" href="assets/logo-64.png">
+    <link rel="apple-touch-icon" href="assets/logo-180.png">
     <link rel="canonical" href="https://averlen.app/">
 
     <!-- Open Graph / social sharing -->
-    <meta property="og:title" content="Averlen — Track spending, share finances, plan ahead.">
+    <meta property="og:site_name" content="Averlen">
+    <meta property="og:title" content="Averlen — See where your money goes. Plan what comes next.">
     <meta property="og:description" content="Track spending, share finances with a partner, and plan ahead with Averlen for iPhone.">
-    <meta property="og:image" content="https://averlen.app/averlen-logo.png">
-    <meta property="og:url" content="https://averlen.app">
+    <meta property="og:image" content="https://averlen.app/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:url" content="https://averlen.app/">
     <meta property="og:type" content="website">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Averlen — Track spending, share finances, plan ahead.">
+    <meta name="twitter:title" content="Averlen — See where your money goes. Plan what comes next.">
     <meta name="twitter:description" content="Track spending, share finances with a partner, and plan ahead with Averlen for iPhone.">
-    <meta name="twitter:image" content="https://averlen.app/averlen-logo.png">
+    <meta name="twitter:image" content="https://averlen.app/assets/og-image.png">
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"MobileApplication","name":"Averlen","operatingSystem":"iOS","applicationCategory":"FinanceApplication","url":"https://averlen.app/","downloadUrl":"https://apps.apple.com/us/app/averlen/id6792603482","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"publisher":{"@type":"Organization","name":"Candor, LLC"}}
+    </script>
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
         :root {
-            --green: #5FAF87;
-            --green-light: #7CC9A1;
-            --green-dark: #4A8F6E;
-            --green-glow: rgba(95, 175, 135, 0.25);
+            --sage: #5FAF87;
+            --sage-light: #8FD3B0;
+            --sage-wash: rgba(95, 175, 135, 0.12);
+            --blue: #7FB2D9;
+            --amber: #E3B36A;
             --bg: #0A0D11;
-            --surface: rgba(255, 255, 255, 0.04);
-            --surface-hover: rgba(255, 255, 255, 0.07);
-            --border: rgba(255, 255, 255, 0.06);
-            --border-light: rgba(255, 255, 255, 0.1);
+            --bg-raised: #10141A;
+            --surface: rgba(255, 255, 255, 0.035);
+            --border: rgba(255, 255, 255, 0.07);
+            --border-strong: rgba(255, 255, 255, 0.12);
             --text: #F4F7FB;
-            --text-secondary: #8994A3;
-            --text-muted: #5a5f68;
+            --text-secondary: #A3ADBA;
+            --text-muted: #8590A0;
+            --serif: ui-serif, "New York", "Iowan Old Style", Charter, Georgia, serif;
+            --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+            --radius: 22px;
+            --max: 1120px;
         }
 
         html { scroll-behavior: smooth; }
+        @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: var(--sans);
             background: var(--bg);
             color: var(--text);
-            min-height: 100vh;
+            line-height: 1.5;
             overflow-x: hidden;
             -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
         }
 
-        /* ── Ambient background glow ── */
-        .bg-glow {
-            position: fixed;
-            top: -200px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 800px;
-            height: 600px;
-            background: radial-gradient(ellipse, rgba(95, 175, 135, 0.10) 0%, transparent 70%);
-            pointer-events: none;
-            z-index: 0;
+        img { display: block; max-width: 100%; height: auto; }
+        a { color: inherit; }
+        :focus-visible { outline: 2px solid var(--sage-light); outline-offset: 3px; border-radius: 6px; }
+
+        .skip {
+            position: absolute; left: 16px; top: -48px; z-index: 200;
+            background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px;
+            font-weight: 600; text-decoration: none;
+        }
+        .skip:focus { top: 12px; }
+
+        .container { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
+
+        .eyebrow {
+            font-size: 12px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase;
+            color: var(--sage-light);
         }
 
-        .bg-glow-bottom {
-            position: fixed;
-            bottom: -300px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 1000px;
-            height: 600px;
-            background: radial-gradient(ellipse, rgba(95, 175, 135, 0.06) 0%, transparent 70%);
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        /* ── Noise texture overlay ── */
-        body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
-            pointer-events: none;
-            z-index: 1;
-        }
-
-        /* ── Layout ── */
-        .page { position: relative; z-index: 2; }
-
-        .container {
-            max-width: 960px;
-            margin: 0 auto;
-            padding: 0 24px;
-        }
+        h1, h2, .display { font-family: var(--serif); font-weight: 500; letter-spacing: -0.02em; }
 
         /* ── Nav ── */
-        nav {
-            padding: 20px 0;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            background: rgba(10, 13, 17, 0.8);
+        .nav {
+            position: sticky; top: 0; z-index: 100;
+            background: rgba(10, 13, 17, 0.72);
+            backdrop-filter: saturate(160%) blur(18px);
+            -webkit-backdrop-filter: saturate(160%) blur(18px);
             border-bottom: 1px solid var(--border);
         }
-
-        .nav-inner {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .nav-brand {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            text-decoration: none;
-        }
-
-        .nav-brand img {
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
-        }
-
-        .nav-brand span {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--text);
-            letter-spacing: -0.3px;
-        }
-
-        .nav-links {
-            display: flex;
-            align-items: center;
-            gap: 32px;
-        }
-
-        .nav-links a {
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-size: 14px;
-            font-weight: 500;
-            transition: color 0.2s;
-        }
-
+        .nav-inner { height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+        .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+        .brand img { width: 30px; height: 30px; border-radius: 8px; }
+        .brand span { font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
+        .nav-links { display: flex; align-items: center; gap: 30px; }
+        .nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 14px; font-weight: 500; transition: color .2s; }
         .nav-links a:hover { color: var(--text); }
 
+        .button {
+            display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+            border-radius: 999px; text-decoration: none; font-weight: 600; white-space: nowrap;
+            transition: transform .2s ease, background .2s ease, box-shadow .2s ease;
+        }
+        .nav-links .button-small { padding: 9px 16px; font-size: 14px; background: var(--text); color: var(--bg); }
+        .nav-links .button-small:hover { background: #fff; color: var(--bg); }
+        .app-store {
+            padding: 12px 22px 12px 18px; background: var(--text); color: var(--bg);
+            box-shadow: 0 10px 40px -12px rgba(143, 211, 176, 0.45);
+        }
+        .app-store:hover { transform: translateY(-1px); background: #fff; }
+        .app-store svg { width: 22px; height: 22px; flex: none; }
+        .app-store small { display: block; font-size: 11px; font-weight: 500; line-height: 1.1; opacity: .72; }
+        .app-store strong { display: block; font-size: 17px; line-height: 1.15; letter-spacing: -0.01em; }
+        .button-ghost { padding: 13px 20px; color: var(--text); border: 1px solid var(--border-strong); font-size: 15px; }
+        .button-ghost:hover { background: var(--surface); }
+
         /* ── Hero ── */
-        .hero {
-            padding: 100px 0 80px;
-            text-align: center;
+        .hero { position: relative; padding: 88px 0 40px; }
+        .hero::before {
+            content: ''; position: absolute; inset: -120px 0 auto; height: 760px; pointer-events: none;
+            background:
+                radial-gradient(600px 380px at 72% 38%, rgba(95, 175, 135, 0.16), transparent 70%),
+                radial-gradient(520px 320px at 18% 10%, rgba(127, 178, 217, 0.08), transparent 70%);
         }
-
+        .hero-grid { position: relative; display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; }
         .hero-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: var(--surface);
-            border: 1px solid var(--border-light);
-            border-radius: 100px;
-            padding: 6px 16px;
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--green-light);
-            margin-bottom: 32px;
-            animation: fadeInUp 0.6s ease-out;
+            display: inline-flex; align-items: center; gap: 8px; margin-bottom: 26px;
+            padding: 6px 14px 6px 10px; border-radius: 999px;
+            background: var(--surface); border: 1px solid var(--border-strong);
+            font-size: 13px; font-weight: 500; color: var(--text-secondary); text-decoration: none;
         }
+        .hero-badge i { width: 7px; height: 7px; border-radius: 50%; background: var(--sage); box-shadow: 0 0 0 4px var(--sage-wash); }
+        .hero h1 { font-size: clamp(44px, 6.4vw, 76px); line-height: 1.02; margin-bottom: 24px; }
+        .hero h1 em { font-style: italic; color: var(--sage-light); }
+        .hero-sub { font-size: 19px; line-height: 1.6; color: var(--text-secondary); max-width: 500px; margin-bottom: 36px; }
+        .hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+        .hero-note { margin-top: 18px; font-size: 13px; color: var(--text-muted); }
 
-        .hero-badge::before {
-            content: '';
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: var(--green-light);
-            animation: pulse 2s ease-in-out infinite;
+        /* ── Phone frames ── */
+        .phone {
+            position: relative; border-radius: 46px; padding: 10px;
+            background: linear-gradient(160deg, #2A3038, #12161B 40%, #1C2128);
+            box-shadow:
+                0 0 0 1px rgba(255,255,255,0.08) inset,
+                0 40px 80px -30px rgba(0, 0, 0, 0.8),
+                0 20px 60px -20px rgba(95, 175, 135, 0.18);
         }
+        .phone img { border-radius: 37px; width: 100%; }
+        .hero-phones { position: relative; height: 640px; }
+        .hero-phones .phone { position: absolute; width: 300px; }
+        .hero-phones .front { right: 18%; top: 0; z-index: 2; }
+        .hero-phones .back { right: -2%; top: 70px; width: 260px; opacity: .55; transform: rotate(6deg); filter: saturate(.8); }
 
-        .hero h1 {
-            font-size: clamp(40px, 6vw, 64px);
-            font-weight: 700;
-            letter-spacing: -1.5px;
-            line-height: 1.1;
-            margin-bottom: 20px;
-            animation: fadeInUp 0.6s ease-out 0.1s both;
+        /* ── Sections ── */
+        section { position: relative; scroll-margin-top: 76px; }
+        .section { padding: 120px 0; }
+        .section-head { max-width: 640px; margin-bottom: 64px; }
+        .section-head h2 { font-size: clamp(34px, 4.4vw, 52px); line-height: 1.08; margin: 14px 0 18px; }
+        .section-head p { font-size: 18px; line-height: 1.65; color: var(--text-secondary); }
+        .center { text-align: center; margin-left: auto; margin-right: auto; }
+
+        /* Principles */
+        .principles {
+            border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+            background: linear-gradient(180deg, transparent, rgba(255,255,255,0.015));
         }
+        .principles-grid { display: grid; grid-template-columns: repeat(3, 1fr); }
+        .principle { padding: 44px 36px; }
+        .principle + .principle { border-left: 1px solid var(--border); }
+        .principle .num { font-family: var(--serif); font-size: 15px; color: var(--sage-light); font-style: italic; margin-bottom: 18px; }
+        .principle h3 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 10px; }
+        .principle p { font-size: 15px; line-height: 1.65; color: var(--text-secondary); }
 
-        .hero h1 .highlight {
-            background: linear-gradient(135deg, var(--green-light), #A3E0BE);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+        /* Feature rows */
+        .feature {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: center;
+            padding: 56px 0;
         }
-
-        .hero-sub {
-            font-size: 18px;
-            line-height: 1.7;
-            color: var(--text-secondary);
-            max-width: 520px;
-            margin: 0 auto 40px;
-            animation: fadeInUp 0.6s ease-out 0.2s both;
+        .feature + .feature { border-top: 1px solid var(--border); }
+        .feature:nth-of-type(even) .feature-media { order: -1; }
+        .feature-copy h3 { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 3.4vw, 40px); line-height: 1.1; letter-spacing: -0.02em; margin: 14px 0 18px; }
+        .feature-copy > p { font-size: 17px; line-height: 1.7; color: var(--text-secondary); margin-bottom: 26px; max-width: 460px; }
+        .checks { list-style: none; display: grid; gap: 12px; }
+        .checks li { display: flex; gap: 12px; font-size: 15px; color: var(--text); line-height: 1.5; }
+        .checks li::before {
+            content: ''; flex: none; width: 20px; height: 20px; margin-top: 1px; border-radius: 50%;
+            background: var(--sage-wash) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%238FD3B0' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 10.5 2.6 2.5L14 7.5'/%3E%3C/svg%3E") center / 20px no-repeat;
         }
-
-        .hero-cta {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            background: var(--green);
-            color: white;
-            padding: 14px 32px;
-            border-radius: 12px;
-            font-size: 15px;
-            font-weight: 600;
-            text-decoration: none;
-            transition: all 0.25s;
-            box-shadow: 0 0 30px var(--green-glow);
-            animation: fadeInUp 0.6s ease-out 0.3s both;
-        }
-
-        .hero-cta:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 0 50px var(--green-glow);
-            background: var(--green-dark);
-        }
-
-        .hero-cta svg {
-            width: 16px;
-            height: 16px;
-        }
-
-        /* ── Features ── */
-        .features-section {
-            padding: 40px 0 80px;
-        }
-
-        .section-label {
-            text-align: center;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            color: var(--green-light);
-            margin-bottom: 12px;
-        }
-
-        .section-title {
-            text-align: center;
-            font-size: 32px;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-            margin-bottom: 48px;
-        }
-
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 16px;
-        }
-
-        .feature-card {
-            background: var(--surface);
+        .feature-media {
+            position: relative; display: flex; justify-content: center; padding: 48px 0;
+            border-radius: 32px; overflow: hidden;
+            background: radial-gradient(70% 70% at 50% 40%, var(--glow, rgba(95,175,135,0.14)), transparent 70%), var(--bg-raised);
             border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 28px;
-            transition: all 0.3s ease;
         }
+        .feature-media .phone { width: min(300px, 74%); }
+        .glow-blue { --glow: rgba(127, 178, 217, 0.16); }
+        .glow-amber { --glow: rgba(227, 179, 106, 0.12); }
 
-        .feature-card:hover {
-            background: var(--surface-hover);
-            border-color: var(--border-light);
-            transform: translateY(-2px);
-        }
+        /* Household illustration */
+        .household { width: min(380px, 84%); display: grid; gap: 14px; padding: 12px 0; }
+        .h-card { background: rgba(255,255,255,0.04); border: 1px solid var(--border-strong); border-radius: 20px; padding: 20px 22px; }
+        .h-people { display: flex; align-items: center; gap: 14px; }
+        .avatar { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-weight: 650; font-size: 15px; }
+        .avatar.a { background: rgba(95,175,135,.2); color: var(--sage-light); }
+        .avatar.b { background: rgba(127,178,217,.2); color: var(--blue); margin-left: -22px; box-shadow: 0 0 0 3px var(--bg-raised); }
+        .h-people strong { display: block; font-size: 15px; }
+        .h-people small { color: var(--text-muted); font-size: 13px; }
+        .h-label { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; font-weight: 600; }
+        .h-value { font-size: 30px; font-weight: 650; letter-spacing: -0.02em; }
+        .h-row { display: flex; justify-content: space-between; padding: 10px 0; font-size: 14px; color: var(--text-secondary); }
+        .h-row + .h-row { border-top: 1px solid var(--border); }
+        .h-row span:last-child { color: var(--text); font-variant-numeric: tabular-nums; }
+        .h-tag { display: inline-block; font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--sage-wash); color: var(--sage-light); margin-left: 6px; }
 
-        .feature-icon-wrap {
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
-            background: rgba(95, 175, 135, 0.14);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 16px;
-            font-size: 18px;
-        }
-
-        .feature-card h3 {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 8px;
-            letter-spacing: -0.2px;
-        }
-
-        .feature-card p {
-            font-size: 14px;
-            color: var(--text-secondary);
-            line-height: 1.6;
-        }
-
-        /* ── How it works ── */
-        .how-section {
-            padding: 80px 0;
-        }
-
-        .steps {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 32px;
-            margin-top: 48px;
-        }
-
-        .step {
-            text-align: center;
-        }
-
-        .step-num {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            background: rgba(95, 175, 135, 0.18);
-            color: var(--green-light);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            font-weight: 700;
-            margin-bottom: 16px;
-            border: 1px solid rgba(95, 175, 135, 0.3);
-        }
-
-        .step h3 {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-
-        .step p {
-            font-size: 14px;
-            color: var(--text-secondary);
-            line-height: 1.6;
-        }
-
-        /* ── Privacy banner ── */
-        .privacy-section {
-            padding: 60px 0;
-        }
-
+        /* Privacy */
+        .privacy { padding: 0 0 120px; }
         .privacy-card {
-            background: linear-gradient(135deg, rgba(95, 175, 135, 0.10), rgba(46, 125, 50, 0.02));
-            border: 1px solid rgba(46, 125, 50, 0.15);
-            border-radius: 20px;
-            padding: 48px;
-            text-align: center;
+            display: grid; grid-template-columns: 1.1fr 1fr; gap: 56px; align-items: center;
+            padding: 64px; border-radius: 32px;
+            background: linear-gradient(140deg, rgba(95,175,135,0.12), rgba(95,175,135,0.02) 55%), var(--bg-raised);
+            border: 1px solid rgba(95,175,135,0.18);
         }
-
-        .privacy-card h2 {
-            font-size: 24px;
-            font-weight: 700;
-            margin-bottom: 12px;
-            letter-spacing: -0.3px;
+        .privacy-card h2 { font-size: clamp(30px, 3.6vw, 42px); line-height: 1.1; margin: 14px 0 16px; }
+        .privacy-card p { color: var(--text-secondary); font-size: 16px; line-height: 1.7; }
+        .privacy-card p a { color: var(--sage-light); }
+        .privacy-list { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .privacy-list li {
+            padding: 18px; border-radius: 16px; background: rgba(10,13,17,0.5); border: 1px solid var(--border);
+            font-size: 14px; color: var(--text-secondary); line-height: 1.45;
         }
+        .privacy-list strong { display: block; color: var(--text); font-size: 15px; margin-bottom: 4px; }
 
-        .privacy-card p {
-            font-size: 15px;
-            color: var(--text-secondary);
-            line-height: 1.7;
-            max-width: 480px;
-            margin: 0 auto;
+        /* Final CTA */
+        .cta { text-align: center; padding: 40px 0 130px; }
+        .cta img { width: 72px; height: 72px; border-radius: 18px; margin: 0 auto 28px; box-shadow: 0 20px 50px -16px rgba(95,175,135,0.5); }
+        .cta h2 { font-size: clamp(36px, 5vw, 60px); line-height: 1.05; margin-bottom: 18px; }
+        .cta p { color: var(--text-secondary); font-size: 18px; margin: 0 auto 34px; max-width: 460px; }
+
+        /* Footer */
+        footer { border-top: 1px solid var(--border); padding: 36px 0 44px; }
+        .footer-inner { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+        .footer-brand { display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 13px; }
+        .footer-brand img { width: 22px; height: 22px; border-radius: 6px; }
+        .footer-links { display: flex; gap: 26px; flex-wrap: wrap; }
+        .footer-links a { font-size: 13px; color: var(--text-muted); text-decoration: none; }
+        .footer-links a:hover { color: var(--text); }
+
+        /* Entrance motion, only when the visitor allows it */
+        @media (prefers-reduced-motion: no-preference) {
+            .rise { animation: rise .8s cubic-bezier(.2,.7,.2,1) both; }
+            .rise-2 { animation-delay: .08s; } .rise-3 { animation-delay: .16s; } .rise-4 { animation-delay: .24s; }
+            .hero-phones .front { animation: rise 1s cubic-bezier(.2,.7,.2,1) .15s both; }
+            @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
         }
-
-        .privacy-pills {
-            display: flex;
-            justify-content: center;
-            gap: 12px;
-            margin-top: 24px;
-            flex-wrap: wrap;
-        }
-
-        .pill {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 100px;
-            padding: 8px 16px;
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--text-secondary);
-        }
-
-        /* ── Footer ── */
-        footer {
-            padding: 40px 0;
-            border-top: 1px solid var(--border);
-            margin-top: 40px;
-        }
-
-        .footer-inner {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .footer-brand {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .footer-brand img {
-            width: 20px;
-            height: 20px;
-            border-radius: 5px;
-            opacity: 0.5;
-        }
-
-        .footer-brand span {
-            font-size: 13px;
-            color: var(--text-muted);
-        }
-
-        .footer-links {
-            display: flex;
-            gap: 24px;
-        }
-
-        .footer-links a {
-            font-size: 13px;
-            color: var(--text-muted);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .footer-links a:hover { color: var(--text-secondary); }
-
-        /* ── Animations ── */
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
-
-        /* ── Mobile hamburger toggle ── */
-        .nav-toggle {
-            display: none;
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 8px;
-            color: var(--text-secondary);
-        }
-
-        .nav-toggle svg { display: block; }
 
         /* ── Responsive ── */
-        @media (max-width: 640px) {
-            .hero { padding: 60px 0 50px; }
-            .hero h1 { font-size: 32px; }
-            .hero-sub { font-size: 16px; }
-            .features-grid { grid-template-columns: 1fr; }
-            .steps { grid-template-columns: 1fr; gap: 24px; }
-            .privacy-card { padding: 32px 24px; }
-            .privacy-pills { gap: 8px; }
-            .pill { font-size: 12px; padding: 6px 12px; }
-            .footer-inner { flex-direction: column; gap: 16px; text-align: center; }
-            .footer-links { gap: 16px; }
-
-            .nav-toggle { display: block; }
-
-            .nav-links {
-                display: none;
-                position: absolute;
-                top: 100%;
-                left: 0;
-                right: 0;
-                background: rgba(10, 13, 17, 0.95);
-                backdrop-filter: blur(20px);
-                -webkit-backdrop-filter: blur(20px);
-                border-bottom: 1px solid var(--border);
-                flex-direction: column;
-                padding: 16px 24px;
-                gap: 16px;
-            }
-
-            .nav-links.open { display: flex; }
-
-            .nav-links a { font-size: 16px; }
+        @media (max-width: 960px) {
+            .hero { padding-top: 64px; }
+            .hero-grid { grid-template-columns: 1fr; text-align: center; gap: 24px; }
+            .hero-sub { margin-left: auto; margin-right: auto; }
+            .hero-actions { justify-content: center; }
+            .hero-phones { height: auto; display: flex; justify-content: center; padding-top: 16px; }
+            .hero-phones .phone { position: relative; right: auto; top: auto; }
+            .hero-phones .front { width: min(300px, 78vw); }
+            .hero-phones .back { display: none; }
+            .feature { grid-template-columns: 1fr; gap: 36px; padding: 48px 0; }
+            .feature:nth-of-type(even) .feature-media { order: 0; }
+            .privacy-card { grid-template-columns: 1fr; padding: 40px 28px; gap: 32px; }
+            .section { padding: 88px 0; }
+        }
+        @media (max-width: 720px) {
+            .nav-links a:not(.button) { display: none; }
+            .principles-grid { grid-template-columns: 1fr; }
+            .principle { padding: 32px 4px; }
+            .principle + .principle { border-left: 0; border-top: 1px solid var(--border); }
+            .privacy-list { grid-template-columns: 1fr; }
+            .hero-sub { font-size: 17px; }
+            .footer-inner { flex-direction: column; text-align: center; }
         }
     </style>
 </head>
 <body>
-    <div class="bg-glow"></div>
-    <div class="bg-glow-bottom"></div>
+    <a class="skip" href="#main">Skip to content</a>
 
-    <div class="page">
-        <!-- Nav -->
-        <nav>
-            <div class="container">
-                <div class="nav-inner">
-                    <a href="/" class="nav-brand">
-                        <img src="averlen-logo.png" alt="Averlen">
-                        <span>Averlen</span>
-                    </a>
-                    <button class="nav-toggle" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">
-                        <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
-                        </svg>
-                    </button>
-                    <div class="nav-links">
-                        <a href="#features" onclick="document.querySelector('.nav-links').classList.remove('open')">Features</a>
-                        <a href="#how" onclick="document.querySelector('.nav-links').classList.remove('open')">How It Works</a>
-                        <a href="support.html">Support</a>
-                    </div>
-                </div>
-            </div>
-        </nav>
+    <header class="nav">
+        <div class="container nav-inner">
+            <a href="/" class="brand" aria-label="Averlen home">
+                <img src="assets/logo-64.png" width="30" height="30" alt="">
+                <span>Averlen</span>
+            </a>
+            <nav class="nav-links" aria-label="Main">
+                <a href="#features">Features</a>
+                <a href="#privacy">Privacy</a>
+                <a href="support.html">Support</a>
+                <a class="button button-small" href="https://apps.apple.com/us/app/averlen/id6792603482">Download</a>
+            </nav>
+        </div>
+    </header>
 
+    <main id="main">
         <!-- Hero -->
         <section class="hero">
-            <div class="container">
-                <div class="hero-badge">Coming Soon</div>
-                <h1>See your spending.<br><span class="highlight">Plan what comes next.</span></h1>
-                <p class="hero-sub">
-                    Track spending, share a financial picture with your partner, and plan ahead.
-                    Get useful insight without being forced into a rigid budget.
-                </p>
-                <a href="#features" class="hero-cta">
-                    Learn More
-                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
-                    </svg>
-                </a>
+            <div class="container hero-grid">
+                <div>
+                    <a class="hero-badge rise" href="https://apps.apple.com/us/app/averlen/id6792603482"><i></i>Now available for iPhone</a>
+                    <h1 class="rise rise-2">See where your money goes. <em>Plan what comes next.</em></h1>
+                    <p class="hero-sub rise rise-3">Averlen brings your spending, your shared finances, and your long-term plans into one calm picture — with useful insight and no rigid budget to maintain.</p>
+                    <div class="hero-actions rise rise-4">
+                        <a class="button app-store" href="https://apps.apple.com/us/app/averlen/id6792603482" aria-label="Download Averlen on the App Store">
+                            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.37 12.6c-.02-2.3 1.88-3.4 1.96-3.46-1.07-1.56-2.73-1.77-3.32-1.8-1.41-.14-2.76.83-3.48.83-.72 0-1.82-.81-3-.79-1.54.02-2.96.9-3.76 2.27-1.6 2.78-.41 6.9 1.15 9.16.76 1.1 1.67 2.34 2.86 2.3 1.15-.05 1.58-.74 2.97-.74 1.38 0 1.78.74 2.99.72 1.24-.02 2.02-1.12 2.77-2.23.87-1.28 1.23-2.52 1.25-2.58-.03-.01-2.39-.92-2.41-3.65ZM14.1 5.86c.63-.77 1.06-1.83.94-2.89-.91.04-2.01.61-2.66 1.37-.58.67-1.1 1.75-.96 2.79 1.02.08 2.05-.52 2.68-1.27Z"/></svg>
+                            <span><small>Download on the</small><strong>App Store</strong></span>
+                        </a>
+                        <a class="button button-ghost" href="#features">See how it works</a>
+                    </div>
+                    <p class="hero-note rise rise-4">Free to download · Subscription available in the app · Requires iPhone</p>
+                </div>
+                <div class="hero-phones" aria-hidden="true">
+                    <div class="phone back"><img src="assets/trends-420.webp" width="420" height="913" alt=""></div>
+                    <div class="phone front"><picture><source type="image/webp" srcset="assets/home-420.webp 420w, assets/home-840.webp 840w" sizes="300px"><img src="assets/home-840.jpg" width="840" height="1826" alt="" fetchpriority="high"></picture></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Principles -->
+        <section class="principles" aria-label="What makes Averlen different">
+            <div class="container principles-grid">
+                <div class="principle">
+                    <p class="num">i.</p>
+                    <h3>Awareness, not a budget</h3>
+                    <p>No envelopes to fill or categories to police. Averlen shows you what happened so you can decide what matters.</p>
+                </div>
+                <div class="principle">
+                    <p class="num">ii.</p>
+                    <h3>Compared with your own normal</h3>
+                    <p>Changes are measured against your typical month at the same point in time — not against someone else's rules.</p>
+                </div>
+                <div class="principle">
+                    <p class="num">iii.</p>
+                    <h3>One picture, together</h3>
+                    <p>Share a household with your partner while keeping your own sign-in, so planning ahead becomes a shared conversation.</p>
+                </div>
             </div>
         </section>
 
         <!-- Features -->
-        <section class="features-section" id="features">
+        <section class="section" id="features">
             <div class="container">
-                <p class="section-label">Features</p>
-                <h2 class="section-title">Your money, together and ahead.</h2>
-                <div class="features-grid">
-                    <div class="feature-card">
-                        <div class="feature-icon-wrap">
-                            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#7CC9A1" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 6h18M3 14h18M3 18h18"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-                        </div>
-                        <h3>Track Your Spending</h3>
-                        <p>Connect supported accounts through Plaid or add transactions yourself. Explore spending by category, merchant, and month.</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon-wrap">
-                            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#7CC9A1" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-                        </div>
-                        <h3>Share Finances</h3>
-                        <p>Join a two-person household to see shared transactions and account information while keeping separate sign-ins.</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon-wrap">
-                            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#7CC9A1" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                        </div>
-                        <h3>Plan Ahead</h3>
-                        <p>See your net worth and explore tools for debt payoff and retirement planning.</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon-wrap">
-                            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#7CC9A1" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
-                        </div>
-                        <h3>Private by Design</h3>
-                        <p>Face ID support, protected connections, and clear controls for your data. Averlen does not sell personal data or use it for advertising.</p>
-                    </div>
+                <div class="section-head">
+                    <p class="eyebrow">Features</p>
+                    <h2>Everything you need to see clearly. Nothing you don't.</h2>
+                    <p>Track spending, share finances, and plan ahead in an app designed to feel calm rather than demanding.</p>
                 </div>
-            </div>
-        </section>
 
-        <!-- How It Works -->
-        <section class="how-section" id="how">
-            <div class="container">
-                <p class="section-label">How It Works</p>
-                <h2 class="section-title">Start with what matters to you.</h2>
-                <div class="steps">
-                    <div class="step">
-                        <div class="step-num">1</div>
-                        <h3>Bring in Transactions</h3>
-                        <p>Connect a supported account through Plaid, import a CSV, or add purchases yourself.</p>
+                <article class="feature">
+                    <div class="feature-copy">
+                        <p class="eyebrow">Track spending</p>
+                        <h3>Every purchase, in its place.</h3>
+                        <p>Connect supported accounts through Plaid, import a CSV, or add purchases yourself. Averlen organizes them by category so the month makes sense at a glance.</p>
+                        <ul class="checks">
+                            <li>Search by merchant, note, or amount</li>
+                            <li>Spending, income, and net cash flow for any month</li>
+                            <li>A monthly pace chart against your typical history</li>
+                        </ul>
                     </div>
-                    <div class="step">
-                        <div class="step-num">2</div>
-                        <h3>See the Patterns</h3>
-                        <p>Explore categories, merchants, and monthly trends to understand where your money goes.</p>
+                    <div class="feature-media">
+                        <div class="phone"><picture><source type="image/webp" srcset="assets/activity-420.webp 420w, assets/activity-840.webp 840w" sizes="300px"><img src="assets/activity-840.jpg" width="840" height="1826" alt="Averlen's Activity screen listing September transactions by day, with $3,217 of spending tracked" loading="lazy"></picture></div>
                     </div>
-                    <div class="step">
-                        <div class="step-num">3</div>
-                        <h3>Look Ahead Together</h3>
-                        <p>Share a household with one partner and use planning tools when you are ready.</p>
+                </article>
+
+                <article class="feature">
+                    <div class="feature-copy">
+                        <p class="eyebrow">Understand trends</p>
+                        <h3>Notice what changed, without the guilt.</h3>
+                        <p>Trends compares each month with your own typical spending through the same day, then points to the categories that moved most — in neutral colors, never red-and-green judgment.</p>
+                        <ul class="checks">
+                            <li>Spending over time, month to month</li>
+                            <li>The categories behind each change</li>
+                            <li>A monthly report you can open anytime</li>
+                        </ul>
                     </div>
-                </div>
+                    <div class="feature-media glow-blue">
+                        <div class="phone"><picture><source type="image/webp" srcset="assets/trends-420.webp 420w, assets/trends-840.webp 840w" sizes="300px"><img src="assets/trends-840.jpg" width="840" height="1826" alt="Averlen's Trends screen with a year of monthly spending bars and the categories that changed most" loading="lazy"></picture></div>
+                    </div>
+                </article>
+
+                <article class="feature">
+                    <div class="feature-copy">
+                        <p class="eyebrow">Share finances</p>
+                        <h3>Your household, on the same page.</h3>
+                        <p>Invite one partner to a two-person household. You'll both see the shared transactions and account information while keeping separate, private sign-ins.</p>
+                        <ul class="checks">
+                            <li>Separate accounts, one shared picture</li>
+                            <li>Secure invitations from inside the app</li>
+                            <li>See household net worth together</li>
+                        </ul>
+                    </div>
+                    <div class="feature-media glow-amber" aria-hidden="true">
+                        <div class="household">
+                            <div class="h-card h-people">
+                                <span class="avatar a">A</span><span class="avatar b">J</span>
+                                <span><strong>Shared household</strong><small>2 members · separate sign-ins</small></span>
+                            </div>
+                            <div class="h-card">
+                                <p class="h-label">Household net worth</p>
+                                <p class="h-value">$84,210</p>
+                            </div>
+                            <div class="h-card">
+                                <div class="h-row"><span>Groceries <span class="h-tag">Shared</span></span><span>$472</span></div>
+                                <div class="h-row"><span>Utilities <span class="h-tag">Shared</span></span><span>$186</span></div>
+                                <div class="h-row"><span>Restaurants</span><span>$214</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="feature">
+                    <div class="feature-copy">
+                        <p class="eyebrow">Plan ahead</p>
+                        <h3>From this month to the decades ahead.</h3>
+                        <p>See your net worth over time and explore what's possible with planning tools for retirement and debt payoff — whenever you're ready.</p>
+                        <ul class="checks">
+                            <li>Net worth across your accounts</li>
+                            <li>Retirement projections with clear assumptions</li>
+                            <li>A debt payoff simulator for extra payments</li>
+                        </ul>
+                    </div>
+                    <div class="feature-media">
+                        <div class="phone"><picture><source type="image/webp" srcset="assets/retirement-420.webp 420w, assets/retirement-840.webp 840w" sizes="300px"><img src="assets/retirement-840.jpg" width="840" height="1826" alt="Averlen's Retirement screen showing an on-track projection and growth chart" loading="lazy"></picture></div>
+                    </div>
+                </article>
             </div>
         </section>
 
         <!-- Privacy -->
-        <section class="privacy-section">
+        <section class="privacy" id="privacy">
             <div class="container">
                 <div class="privacy-card">
-                    <h2>Your data, handled with care.</h2>
-                    <p>Averlen uses encrypted connections and provider-managed storage protection. Plaid access tokens receive additional application-level encryption. Read our Privacy Policy for details on data use and service providers.</p>
-                    <div class="privacy-pills">
-                        <span class="pill">TLS in transit</span>
-                        <span class="pill">No data selling</span>
-                        <span class="pill">Face ID option</span>
-                        <span class="pill">No ad tracking</span>
+                    <div>
+                        <p class="eyebrow">Privacy</p>
+                        <h2>Your data, handled with care.</h2>
+                        <p>Averlen uses encrypted connections and provider-managed storage protection. Plaid access tokens receive additional application-level encryption. Averlen does not sell personal data or use it for advertising. <a href="privacy.html">Read the Privacy Policy</a> for details on data use and service providers.</p>
                     </div>
+                    <ul class="privacy-list">
+                        <li><strong>Encrypted in transit</strong>TLS on every connection</li>
+                        <li><strong>Never sold</strong>No selling of personal data</li>
+                        <li><strong>No ad tracking</strong>Your data isn't used for ads</li>
+                        <li><strong>Face ID option</strong>Lock the app on your iPhone</li>
+                    </ul>
                 </div>
             </div>
         </section>
 
-        <!-- Footer -->
-        <footer>
+        <!-- Final CTA -->
+        <section class="cta">
             <div class="container">
-                <div class="footer-inner">
-                    <div class="footer-brand">
-                        <img src="averlen-logo.png" alt="Averlen">
-                        <span>&copy; 2026 Candor, LLC</span>
-                    </div>
-                    <div class="footer-links">
-                        <a href="privacy.html">Privacy Policy</a>
-                        <a href="terms.html">Terms of Service</a>
-                        <a href="support.html">Support</a>
-                    </div>
-                </div>
+                <img src="assets/logo-180.png" width="72" height="72" alt="">
+                <h2>A clearer picture starts here.</h2>
+                <p>Download Averlen for iPhone and see your month with fresh eyes.</p>
+                <a class="button app-store" href="https://apps.apple.com/us/app/averlen/id6792603482" aria-label="Download Averlen on the App Store">
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.37 12.6c-.02-2.3 1.88-3.4 1.96-3.46-1.07-1.56-2.73-1.77-3.32-1.8-1.41-.14-2.76.83-3.48.83-.72 0-1.82-.81-3-.79-1.54.02-2.96.9-3.76 2.27-1.6 2.78-.41 6.9 1.15 9.16.76 1.1 1.67 2.34 2.86 2.3 1.15-.05 1.58-.74 2.97-.74 1.38 0 1.78.74 2.99.72 1.24-.02 2.02-1.12 2.77-2.23.87-1.28 1.23-2.52 1.25-2.58-.03-.01-2.39-.92-2.41-3.65ZM14.1 5.86c.63-.77 1.06-1.83.94-2.89-.91.04-2.01.61-2.66 1.37-.58.67-1.1 1.75-.96 2.79 1.02.08 2.05-.52 2.68-1.27Z"/></svg>
+                    <span><small>Download on the</small><strong>App Store</strong></span>
+                </a>
             </div>
-        </footer>
-    </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container footer-inner">
+            <div class="footer-brand">
+                <img src="assets/logo-64.png" width="22" height="22" alt="">
+                <span>&copy; 2026 Candor, LLC. Averlen is a product of Candor, LLC.</span>
+            </div>
+            <nav class="footer-links" aria-label="Legal and support">
+                <a href="privacy.html">Privacy Policy</a>
+                <a href="terms.html">Terms of Service</a>
+                <a href="support.html">Support</a>
+            </nav>
+        </div>
+    </footer>
 </body>
 </html>
