@@ -1,5 +1,5 @@
-import { categories, accounts, localDateKey, makeDemo, forMonth, totals, categoryTotals, makeWealthHistory, deletionPolicy, monthChange, attentionStory, pace, trendsComparison, monthlySeries } from './model.js?v=256e4a16cf';
-import { RETIREMENT, demoRetirementPlan, parseRetirementPlan, retirementProjection, retirementEligibleBalance, statusLabel, parseLoans, demoLoans, loanResult, payoffScenario, debtPortfolio, loanKindName, parseOwnership, ownershipLens } from './planning.js?v=256e4a16cf';
+import { categories, accounts, localDateKey, makeDemo, forMonth, totals, categoryTotals, makeWealthHistory, deletionPolicy, monthChange, attentionStory, pace, trendsComparison, monthlySeries } from './model.js?v=64b5d6ddbe';
+import { RETIREMENT, demoRetirementPlan, parseRetirementPlan, retirementProjection, retirementEligibleBalance, statusLabel, parseLoans, demoLoans, loanResult, payoffScenario, debtPortfolio, loanKindName, parseOwnership, ownershipLens } from './planning.js?v=64b5d6ddbe';
 
 const paths = {
   home: '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/>',
@@ -54,9 +54,13 @@ const paths = {
 const icon = name => `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name] || paths.bank}</svg>`;
 const esc = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-const money = cents => currency.format(cents / 100);
-const wholeCurrency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-const roundMoney = cents => wholeCurrency.format(Math.round(cents / 100));
+// Whole dollars, like Double.asRoundedCurrency on iOS: NumberFormatter's
+// default half-even rounding, and cents only for amounts under $1.
+const wholeCurrency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0, roundingMode: 'halfEven' });
+const money = cents => Math.abs(cents) >= 100 ? wholeCurrency.format(cents / 100) : currency.format(cents / 100);
+// Exact amounts where the app uses asCurrency (transaction detail, chart scrubbing).
+const exactMoney = cents => currency.format(cents / 100);
+const roundMoney = money;
 const compact = cents => Math.abs(cents) >= 100000 ? `$${(cents / 100000).toFixed(1).replace(/\.0$/, '')}K` : roundMoney(cents);
 const longMonth = month => new Date(`${month}-01T12:00:00`).toLocaleDateString('en-US', { month: 'long' });
 const dateLabel = iso => new Date(`${iso}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -252,7 +256,7 @@ function attachHistoryScrub() {
   const move = event => {
     const box = svg.getBoundingClientRect(), position = (event.clientX - box.left) / box.width * 600;
     const point = points.reduce((best, candidate) => Math.abs(candidate[2] - position) < Math.abs(best[2] - position) ? candidate : best);
-    title.innerHTML = `<strong class="scrub-value">${money(point[1])}</strong><span class="card-subtitle">${new Date(`${point[0]}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>`;
+    title.innerHTML = `<strong class="scrub-value">${exactMoney(point[1])}</strong><span class="card-subtitle">${new Date(`${point[0]}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>`;
     rule.hidden = false; rule.setAttribute('x1', point[2]); rule.setAttribute('x2', point[2]);
     dot.style.left = `${point[2] / 6}%`; dot.style.top = `${point[3] / 1.8}%`;
   };
@@ -640,10 +644,10 @@ document.addEventListener('click', event => {
     else location.hash = 'activity';
   }
   const txButton = event.target.closest('[data-tx]');
-  if (txButton && state.liveData) { const tx = rows.find(row => row.id === txButton.dataset.tx); openDialog(tx.merchant, `<p class="subtle">${dateLabel(tx.date)} · ${esc(catFor(tx.category).name)}</p><div class="dialog-value">${tx.income ? '+' : '−'}${money(tx.cents)}</div><p class="note">${esc(tx.note || '')}</p><p class="note">This saved transaction is read-only on the website. Edit it in the iPhone app.</p>`); return; }
+  if (txButton && state.liveData) { const tx = rows.find(row => row.id === txButton.dataset.tx); openDialog(tx.merchant, `<p class="subtle">${dateLabel(tx.date)} · ${esc(catFor(tx.category).name)}</p><div class="dialog-value">${tx.income ? '+' : '−'}${exactMoney(tx.cents)}</div><p class="note">${esc(tx.note || '')}</p><p class="note">This saved transaction is read-only on the website. Edit it in the iPhone app.</p>`); return; }
   if (txButton) {
     const tx = rows.find(row => row.id === txButton.dataset.tx);
-    openDialog(tx.merchant, `<p class="subtle">${dateLabel(tx.date)} · Sample transaction</p><div class="dialog-value ${tx.income ? 'positive' : ''}">${tx.income ? '+' : '−'}${money(tx.cents)}</div><label for="edit-category" class="dialog-label">Category</label><select id="edit-category">${categories.filter(cat => (cat.id === 'income') === tx.income).map(cat => `<option value="${esc(cat.id)}" ${cat.id === tx.category ? 'selected' : ''}>${esc(cat.name)}</option>`).join('')}</select><p class="note">Try a different category. This changes sample data in this browser only and resets on reload.</p><div class="button-row"><button class="button primary" id="save-category">Save sample category</button></div>`);
+    openDialog(tx.merchant, `<p class="subtle">${dateLabel(tx.date)} · Sample transaction</p><div class="dialog-value ${tx.income ? 'positive' : ''}">${tx.income ? '+' : '−'}${exactMoney(tx.cents)}</div><label for="edit-category" class="dialog-label">Category</label><select id="edit-category">${categories.filter(cat => (cat.id === 'income') === tx.income).map(cat => `<option value="${esc(cat.id)}" ${cat.id === tx.category ? 'selected' : ''}>${esc(cat.name)}</option>`).join('')}</select><p class="note">Try a different category. This changes sample data in this browser only and resets on reload.</p><div class="button-row"><button class="button primary" id="save-category">Save sample category</button></div>`);
     document.querySelector('#save-category').addEventListener('click', () => { tx.category = document.querySelector('#edit-category').value; dialog.close(); render(); announce('Sample category updated.'); });
   }
   const accountButton = event.target.closest('[data-account]');
