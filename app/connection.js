@@ -1,4 +1,4 @@
-import { normalizeSnapshot, normalizeBankAccounts } from './data.js?v=64b5d6ddbe';
+import { normalizeSnapshot, normalizeBankAccounts } from './data.js?v=2ce763bc27';
 
 export class ConnectionError extends Error {
   constructor(code, status = 0) { super(code); this.code = code; this.status = status; }

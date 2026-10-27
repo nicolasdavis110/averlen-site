@@ -156,3 +156,33 @@ b.status-onTrack{color:var(--green)}b.status-needsAttention{color:var(--amber)}b
 .category-icon{position:relative;overflow:hidden}
 .merchant-logo{position:absolute;inset:4px;width:calc(100% - 8px);height:calc(100% - 8px);object-fit:contain;border-radius:6px;opacity:0;transition:opacity .15s}
 .logo-loaded .merchant-logo{opacity:1}.logo-loaded svg{visibility:hidden}
+/* Polish pass: one header, balanced desktop columns, tidy dialogs. */
+[data-mode=live] .preview-banner{display:none}
+.topbar h1{margin:0}
+dialog{width:min(560px,calc(100% - 32px))}
+.summary-strip.tight{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.summary-strip.tight .card{padding:14px 16px;border-radius:16px}
+.summary-strip.tight .stat-label{font-size:11px;white-space:nowrap}
+.summary-strip.tight .stat-value{font-size:20px;margin-top:6px;white-space:nowrap}
+.tx-meta .meta-note:not(:first-child)::before{content:' · '}
+.wealth-layout{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:22px;align-items:start}
+.wealth-column{display:grid;gap:22px;min-width:0}
+.wealth-column>.section-label{margin:4px 0 -12px}
+.wealth-column .accounts-heading{margin:4px 0 -10px}
+.wealth-hero{text-align:left;justify-items:start}
+.wealth-hero .hero-number{margin:14px 0 6px}
+.settings-stack{max-width:none}
+.settings-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;align-items:start}
+.settings-column{display:grid;gap:16px;min-width:0}
+.settings-column>.section-label{margin:4px 0 -6px}
+.loading-state{min-height:55dvh;display:grid;place-content:center;justify-items:center;text-align:center;gap:14px}
+.loading-state img{border-radius:14px}
+.loading-state h2{margin:6px 0 0;font-size:20px}
+.spinner{width:22px;height:22px;border-radius:50%;border:2.5px solid var(--line);border-top-color:var(--green);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(min-width:701px){#account-settings{display:none}.activity .tx-meta .meta-category{display:none}.activity .tx-meta .meta-note::before{content:none}}
+@media(max-width:1100px){.wealth-layout,.settings-columns{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:700px){.wealth-layout,.wealth-column{gap:16px}.wealth-hero{text-align:center;justify-items:center}.wealth-hero .wealth-hero-top{text-align:left}}
+@media(max-width:420px){.summary-strip.tight{grid-template-columns:minmax(0,1fr)}}
+.grid{align-items:start}.stack{align-content:start}
+.bars.has-selection .bar-button:not(.selected):not(:hover){opacity:.45}

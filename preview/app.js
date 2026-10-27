@@ -1,5 +1,5 @@
-import { categories, accounts, localDateKey, makeDemo, forMonth, totals, categoryTotals, makeWealthHistory, deletionPolicy, monthChange, attentionStory, pace, trendsComparison, monthlySeries } from './model.js?v=64b5d6ddbe';
-import { RETIREMENT, demoRetirementPlan, parseRetirementPlan, retirementProjection, retirementEligibleBalance, statusLabel, parseLoans, demoLoans, loanResult, payoffScenario, debtPortfolio, loanKindName, parseOwnership, ownershipLens } from './planning.js?v=64b5d6ddbe';
+import { categories, accounts, localDateKey, addMonths, makeDemo, forMonth, totals, categoryTotals, makeWealthHistory, deletionPolicy, monthChange, attentionStory, pace, trendsComparison, monthlySeries } from './model.js?v=2ce763bc27';
+import { RETIREMENT, demoRetirementPlan, parseRetirementPlan, retirementProjection, retirementEligibleBalance, statusLabel, parseLoans, demoLoans, loanResult, payoffScenario, debtPortfolio, loanKindName, parseOwnership, ownershipLens } from './planning.js?v=2ce763bc27';
 
 const paths = {
   home: '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/>',
@@ -57,9 +57,10 @@ const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: '
 // Whole dollars, like Double.asRoundedCurrency on iOS: NumberFormatter's
 // default half-even rounding, and cents only for amounts under $1.
 const wholeCurrency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0, roundingMode: 'halfEven' });
-const money = cents => Math.abs(cents) >= 100 ? wholeCurrency.format(cents / 100) : currency.format(cents / 100);
+const minus = text => text.replace(/^-/, '−');
+const money = cents => minus(Math.abs(cents) >= 100 || cents === 0 ? wholeCurrency.format(cents / 100) : currency.format(cents / 100));
 // Exact amounts where the app uses asCurrency (transaction detail, chart scrubbing).
-const exactMoney = cents => currency.format(cents / 100);
+const exactMoney = cents => minus(currency.format(cents / 100));
 const roundMoney = money;
 const compact = cents => Math.abs(cents) >= 100000 ? `$${(cents / 100000).toFixed(1).replace(/\.0$/, '')}K` : roundMoney(cents);
 const longMonth = month => new Date(`${month}-01T12:00:00`).toLocaleDateString('en-US', { month: 'long' });
@@ -76,9 +77,10 @@ let liveMessage = () => 'Could not finish this request. Please try again.';
 const rows = makeDemo(today);
 const wealthAccounts = accounts.map(account => ({ ...account }));
 const wealthHistory = makeWealthHistory(today);
+function savedTheme() { try { const value = localStorage.getItem('averlen.theme'); return ['light', 'dark'].includes(value) ? value : null; } catch { return null; } }
 const samplePlanning = () => ({ retirement: demoRetirementPlan(), retirementBalance: RETIREMENT.demoBalance, loans: demoLoans(today), debtExtra: 200, split: false, share: 50, lens: 'household' });
 const months = [...new Set(rows.map(tx => tx.date.slice(0, 7)))].sort().reverse();
-const state = { route: 'login', session: false, liveData: null, phase: 'signed-out', liveError: null, liveDeleted: false, month: currentMonth, query: '', category: '', type: '', ...samplePlanning(), deletedPreview: false, theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' };
+const state = { route: 'login', session: false, liveData: null, phase: 'signed-out', liveError: null, liveDeleted: false, month: currentMonth, query: '', category: '', type: '', ...samplePlanning(), deletedPreview: false, theme: savedTheme() || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') };
 const main = document.querySelector('#main');
 const dialog = document.querySelector('#detail');
 const catFor = id => categories.find(cat => cat.id === id) || { name: 'Uncategorized', color: '#6C6E73', icon: 'bag' };
@@ -95,7 +97,7 @@ document.addEventListener('load', event => { if (event.target.classList?.contain
 document.addEventListener('error', event => { if (event.target.classList?.contains('merchant-logo')) event.target.remove(); }, true);
 function txRow(tx, detailed = false) {
   const cat = catFor(tx.category);
-  return `<button class="tx-row" data-tx="${esc(tx.id)}" aria-label="${esc(tx.merchant)}, ${money(tx.cents)}, ${esc(cat.name)}, ${dateLabel(tx.date)}">${catIcon(cat, tx.logo)}<span><span class="merchant">${esc(tx.merchant)}</span><span class="tx-meta">${detailed ? `${esc(cat.name)}${tx.transfer ? ' · Transfer, not in totals' : tx.excluded ? ' · Excluded from totals' : ''}` : `${dateLabel(tx.date)} · ${esc(cat.name)}`}</span></span>${detailed ? `<span class="table-category">${esc(cat.name)}</span>` : ''}<span class="tx-amount ${tx.income ? 'positive' : ''}">${tx.income ? '+' : '−'}${money(tx.cents)}</span></button>`;
+  return `<button class="tx-row" data-tx="${esc(tx.id)}" aria-label="${esc(tx.merchant)}, ${money(tx.cents)}, ${esc(cat.name)}, ${dateLabel(tx.date)}">${catIcon(cat, tx.logo)}<span><span class="merchant">${esc(tx.merchant)}</span><span class="tx-meta">${detailed ? `<span class="meta-category">${esc(cat.name)}</span>${tx.transfer ? '<span class="meta-note">Transfer, not in totals</span>' : tx.excluded ? '<span class="meta-note">Excluded from totals</span>' : ''}` : `${dateLabel(tx.date)} · ${esc(cat.name)}`}</span></span>${detailed ? `<span class="table-category">${esc(cat.name)}</span>` : ''}<span class="tx-amount ${tx.income ? 'positive' : ''}">${tx.income ? '+' : '−'}${money(tx.cents)}</span></button>`;
 }
 function categoryList(data, limit = 7) {
   const cats = categoryTotals(data).slice(0, limit);
@@ -108,9 +110,9 @@ function categoryList(data, limit = 7) {
 function header(title, subtitle = '', action = '') {
   return `<div class="section-heading"><div><h2>${esc(title)}</h2>${subtitle ? `<p class="card-subtitle">${esc(subtitle)}</p>` : ''}</div>${action}</div>`;
 }
-function summary(data) {
+function summary(data, { compact: tight = false } = {}) {
   const sum = totals(data);
-  return `<div class="summary-strip">${[['Income', sum.income, 'arrowIn'], ['Spending', sum.spending, 'arrowOut'], ['Net cash flow', sum.net, 'trends']].map(([name, cents, symbol]) => `<div class="card"><div class="stat-label">${icon(symbol)}${name}</div><div class="stat-value ${name === 'Net cash flow' && cents >= 0 ? 'positive' : ''}">${money(cents)}</div></div>`).join('')}</div>`;
+  return `<div class="summary-strip${tight ? ' tight' : ''}">${[['Income', sum.income, 'arrowIn'], ['Spending', sum.spending, 'arrowOut'], [tight ? 'Net' : 'Net cash flow', sum.net, 'trends']].map(([name, cents, symbol]) => `<div class="card"><div class="stat-label">${icon(symbol)}${name}</div><div class="stat-value ${name === 'Net cash flow' && cents >= 0 ? 'positive' : ''}">${money(cents)}</div></div>`).join('')}</div>`;
 }
 function paceChart(result) {
   const { length, day, current, typical } = result;
@@ -134,7 +136,7 @@ function home() {
   const purchases = data.filter(tx => !tx.income).length;
   const vsTypical = paced.typicalToday != null ? paced.spent - paced.typicalToday : null;
   const badge = change ? `<span class="delta-pill">${Math.abs(change.percent) < 5 ? `≈ About the same ${change.label}` : `${change.percent > 0 ? '↗' : '↘'} ${Math.abs(change.percent) > 999 ? '999+' : Math.round(Math.abs(change.percent))}% ${change.label}`}</span>` : '<span class="delta-pill quiet">Not enough prior-month data</span>';
-  main.innerHTML = `<div class="grid"><div class="stack"><section class="card hero"><div class="overline">Spent in ${longMonth(state.month)}</div><div class="hero-number">${money(sum.spending)}</div>${badge}<p class="subtle">${purchases} ${state.liveData ? '' : 'sample '}purchase${purchases === 1 ? '' : 's'}${state.month === currentMonth ? ` through ${dateLabel(asOf)}` : ''}</p><div class="stats"><div class="stat-tile"><div class="stat-label">Income</div><div class="stat-value positive">${money(sum.income)}</div></div><div class="stat-tile"><div class="stat-label">Net</div><div class="stat-value ${sum.net >= 0 ? 'positive' : ''}">${sum.net >= 0 ? '+' : '−'}${money(Math.abs(sum.net))}</div></div></div></section>${story ? `<button class="card attention" data-category="${esc(story.id)}"><span class="attention-label">Worth a look</span><span class="attention-body">${catIcon(story)}<span><strong>${esc(story.name)} changed most</strong><small>${roundMoney(story.delta)} more than ${longMonth(story.prior)}${story.comparison ? ` ${story.comparison}` : ''}</small></span><span class="chevron" aria-hidden="true">›</span></span></button>` : ''}<section class="card"><div class="section-heading"><div><h2>Monthly pace</h2><p class="card-subtitle">Cumulative spending through day ${paced.day}</p></div>${paced.projected != null ? `<div class="projected"><span>Projected</span><strong>${compact(paced.projected)}</strong></div>` : ''}</div>${vsTypical != null && Math.abs(vsTypical) >= 100 ? `<p class="pace-note">${vsTypical > 0 ? '↗' : '↘'} ${roundMoney(Math.abs(vsTypical))} ${vsTypical > 0 ? 'above' : 'below'} typical today</p>` : ''}${paceChart(paced)}</section></div><div class="stack"><section class="card">${header('Spending by category', 'Follow the numbers into your activity')}<div>${categoryList(data)}</div></section></div><section class="card full">${header('Recent activity', 'The details behind your month', '<a class="text-button" href="#activity">View all activity →</a>')}<div class="transaction-list">${data.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5).map(tx => txRow(tx)).join('') || empty('No transactions in this month.')}</div></section></div>`;
+  main.innerHTML = `<div class="grid"><div class="stack"><section class="card hero"><div class="overline">Spent in ${longMonth(state.month)}</div><div class="hero-number">${money(sum.spending)}</div>${badge}<p class="subtle">${purchases} ${state.liveData ? '' : 'sample '}purchase${purchases === 1 ? '' : 's'}${state.month === currentMonth ? ` through ${dateLabel(asOf)}` : ''}</p><div class="stats"><div class="stat-tile"><div class="stat-label">Income</div><div class="stat-value positive">${money(sum.income)}</div></div><div class="stat-tile"><div class="stat-label">Net</div><div class="stat-value ${sum.net >= 0 ? 'positive' : ''}">${sum.net >= 0 ? '+' : '−'}${money(Math.abs(sum.net))}</div></div></div></section>${story ? `<button class="card attention" data-category="${esc(story.id)}"><span class="attention-label">Worth a look</span><span class="attention-body">${catIcon(story)}<span><strong>${esc(story.name)} changed most</strong><small>${roundMoney(story.delta)} more than ${longMonth(story.prior)}${story.comparison ? ` ${story.comparison}` : ''}</small></span><span class="chevron" aria-hidden="true">›</span></span></button>` : ''}<section class="card"><div class="section-heading"><div><h2>Monthly pace</h2><p class="card-subtitle">Cumulative spending through day ${paced.day}</p></div>${paced.projected != null ? `<div class="projected"><span>Projected</span><strong>${compact(paced.projected)}</strong></div>` : ''}</div>${vsTypical != null && Math.abs(vsTypical) >= 100 ? `<p class="pace-note">${vsTypical > 0 ? '↗' : '↘'} ${roundMoney(Math.abs(vsTypical))} ${vsTypical > 0 ? 'above' : 'below'} typical today</p>` : ''}${paceChart(paced)}</section></div><div class="stack"><section class="card">${header('Spending by category', 'Follow the numbers into your activity')}<div>${categoryList(data)}</div></section><section class="card">${header('Recent activity', 'The details behind your month', '<a class="text-button" href="#activity">View all activity →</a>')}<div class="transaction-list">${data.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5).map(tx => txRow(tx)).join('') || empty('No transactions in this month.')}</div></section></div></div>`;
 }
 function activity() {
   main.innerHTML = `<p class="intro">Explore your transactions, follow a category, or find a particular purchase.</p>${summary(selectedRows())}<div class="filters"><div class="search-wrap">${icon('search')}<label class="sr-only" for="search">Search transactions</label><input id="search" type="search" placeholder="Search transactions…" value="${esc(state.query)}" autocomplete="off"></div><label class="sr-only" for="category-filter">Category</label><select id="category-filter"><option value="">All categories</option>${categories.map(cat => `<option value="${esc(cat.id)}" ${state.category === cat.id ? 'selected' : ''}>${esc(cat.name)}</option>`).join('')}</select><label class="sr-only" for="type-filter">Transaction type</label><select id="type-filter"><option value="">All activity</option><option value="spending" ${state.type === 'spending' ? 'selected' : ''}>Spending</option><option value="income" ${state.type === 'income' ? 'selected' : ''}>Income</option><option value="transfers" ${state.type === 'transfers' ? 'selected' : ''}>Transfers</option></select></div><section class="card activity"><p class="result-count" id="result-count" role="status"></p><div class="table-header"><span>Transaction</span><span>Category</span><span class="right">Amount</span></div><div id="activity-rows"></div></section>`;
@@ -162,16 +164,19 @@ function activityRows() {
 function trends() {
   const trendRows = rows.filter(row => !row.trendExcluded);
   const comparison = trendsComparison(trendRows, state.month, today);
-  const series = monthlySeries(trendRows, state.month, today);
-  const isCurrent = state.month === currentMonth;
+  // Like the iPhone, the chart keeps a fixed 12-month window ending this
+  // month; choosing a month only moves the highlight.
+  const anchor = state.month < addMonths(currentMonth, -11) ? addMonths(state.month, 11) : currentMonth;
+  const series = monthlySeries(trendRows, anchor, today);
+  const isCurrent = anchor === currentMonth;
   const max = Math.max(...series.bars.map(bar => bar.spending), series.typical || 0, 1);
-  const selected = series.bars.at(-1);
+  const selected = series.bars.find(bar => bar.month === state.month) || series.bars.at(-1);
   const summaryLine = !comparison.available ? 'Building your comparison.' : Math.abs(comparison.totalDelta) < 1000 ? 'Overall spending is close to your typical level.' : `${roundMoney(Math.abs(comparison.totalDelta))} ${comparison.totalDelta > 0 ? 'above' : 'below'} your typical level.`;
   const drivers = comparison.drivers.map(cat => {
     const scale = Math.max(cat.current, cat.typical, 1);
     return `<button class="change-row" data-category="${esc(cat.id)}">${catIcon(cat)}<span><strong>${esc(cat.name)}</strong><span class="driver-track"><span style="width:${(cat.current / scale * 100).toFixed(1)}%"></span></span></span><span class="change-amount">${cat.delta > 0 ? '+' : '−'}${roundMoney(Math.abs(cat.delta))}<small>${roundMoney(cat.current)} now · ${roundMoney(cat.typical)} typical</small></span></button>`;
   }).join('');
-  main.innerHTML = `${summary(forMonth(trendRows, state.month))}<div class="grid"><section class="card"><div class="section-heading"><div><h2>Spending over time</h2><p class="card-subtitle">${isCurrent ? `Through day ${series.cutoff} of each month` : 'Spending by month'}</p></div><div class="projected"><strong>${compact(selected.spending)}</strong><span>${monthLabel(state.month)}</span></div></div><div class="bars" style="--t:${series.typical ? (series.typical / max).toFixed(3) : 0}">${series.typical ? '<span class="typical-rule" aria-hidden="true"></span>' : ''}${series.bars.map(bar => `<div class="bar-group"><button class="bar-button ${bar.month === state.month ? 'selected' : ''}" data-month="${bar.month}" style="--h:${(bar.spending / max).toFixed(3)}" aria-label="Explore ${monthLabel(bar.month)}, ${money(bar.spending)} spending" title="${monthLabel(bar.month)} · ${money(bar.spending)}"></button><span class="bar-month">${shortMonth(bar.month)}</span></div>`).join('')}</div>${series.typical ? `<div class="chart-legend"><span><i class="swatch dashed"></i>${compact(series.typical)} typical</span></div>` : ''}<p class="legend">Only months covered from day 1 are shown${isCurrent ? '; every month stops at the same day' : ''}. Select a bar to explore that month.</p></section><section class="card"><div class="section-heading"><div><h2>What changed</h2><p class="card-subtitle">${esc(summaryLine)}</p></div><span class="comparison-label">${esc(comparison.label)}</span></div>${comparison.available ? drivers || empty('No category moved meaningfully from your typical level.') : empty('A full prior month of saved history is needed for a fair comparison.')}${drivers ? '<p class="legend">Select a category to review the transactions behind the change.</p>' : ''}</section><section class="card report-card full"><div class="insight-icon">${icon('activity')}</div><div><h2>Your monthly report</h2><p class="subtle">See income, spending, and the purchases behind ${monthLabel(state.month)} in one place.</p></div><button class="button" data-action="monthly-report">Open report →</button></section></div>`;
+  main.innerHTML = `${summary(forMonth(trendRows, state.month))}<div class="grid"><section class="card"><div class="section-heading"><div><h2>Spending over time</h2><p class="card-subtitle">${isCurrent ? `Through day ${series.cutoff} of each month` : 'Spending by month'}</p></div><div class="projected"><strong>${compact(selected.spending)}</strong><span>${monthLabel(state.month)}</span></div></div><div class="bars${state.month !== currentMonth ? ' has-selection' : ''}" style="--t:${series.typical ? (series.typical / max).toFixed(3) : 0}">${series.typical ? '<span class="typical-rule" aria-hidden="true"></span>' : ''}${series.bars.map(bar => `<div class="bar-group"><button class="bar-button ${bar.month === state.month && state.month !== currentMonth ? 'selected' : ''}" data-month="${bar.month}" style="--h:${(bar.spending / max).toFixed(3)}" aria-label="Explore ${monthLabel(bar.month)}, ${money(bar.spending)} spending" title="${monthLabel(bar.month)} · ${money(bar.spending)}"></button><span class="bar-month">${shortMonth(bar.month)}</span></div>`).join('')}</div>${series.typical ? `<div class="chart-legend"><span><i class="swatch dashed"></i>${compact(series.typical)} typical</span></div>` : ''}<p class="legend">Only months covered from day 1 are shown${isCurrent ? '; every month stops at the same day' : ''}. Select a bar to explore that month.</p></section><section class="card"><div class="section-heading"><div><h2>What changed</h2><p class="card-subtitle">${esc(summaryLine)}</p></div><span class="comparison-label">${esc(comparison.label)}</span></div>${comparison.available ? drivers || empty('No category moved meaningfully from your typical level.') : empty('A full prior month of saved history is needed for a fair comparison.')}${drivers ? '<p class="legend">Select a category to review the transactions behind the change.</p>' : ''}</section><section class="card report-card full"><div class="insight-icon">${icon('activity')}</div><div><h2>Your monthly report</h2><p class="subtle">See income, spending, and the purchases behind ${monthLabel(state.month)} in one place.</p></div><button class="button" data-action="monthly-report">Open report →</button></section></div>`;
 }
 // ── Wealth (mirrors WealthView.swift: hero, Progress, Next steps, Accounts) ──
 // Same "$1.1M" / "$12.5K" rules as Double.asCompactCurrency on iOS.
@@ -228,7 +233,8 @@ function wealthModel() {
   return { live, current, lens, mine, entries, groups, points, change, totals, net: current ? shown.assets - shown.liabilities : latest?.cents ?? 0, tracked: groups.reduce((count, group) => count + group.accounts.length, 0), latest };
 }
 function changeBadge(change) {
-  const flat = Math.abs(change.cents) < 50, up = change.cents > 0, since = isoMonthYear(change.start);
+  const recent = (today - new Date(`${change.start}T12:00:00`)) / 864e5 < 90;
+  const flat = Math.abs(change.cents) < 50, up = change.cents > 0, since = recent ? dateLabel(change.start) : isoMonthYear(change.start);
   return `<span class="change-badge ${flat ? 'flat' : up ? 'up' : 'down'}">${flat ? '=' : up ? '↗' : '↘'} ${flat ? `Steady since ${since}` : `${up ? 'Up' : 'Down'} ${compactDollars(Math.abs(change.cents) / 100)} since ${since}`}</span>`;
 }
 function changeChip(change) {
@@ -304,7 +310,7 @@ function wealth() {
   const ledger = model.groups.length
     ? `<section class="card ledger full">${model.groups.map(group => `<div class="ledger-group ${group.asset ? 'asset' : 'liability'}"><div class="ledger-head">${icon(group.glyph)}<span>${group.title}</span><strong>${roundMoney(group.accounts.reduce((total, account) => total + account.shareCents, 0))}</strong></div>${group.accounts.map(account => `<button class="ledger-row" data-account="${esc(account.id)}"><span class="ledger-icon">${icon(group.glyph)}</span><span class="ledger-name">${esc(account.name)}</span><strong>${roundMoney(account.shareCents)}</strong>${chevron}</button>`).join('')}</div>`).join('')}</section>`
     : `<section class="card notice-card full"><span class="plan-icon">${icon('bank')}</span><div><strong>No accounts yet</strong><p class="subtle">${model.live ? 'Connect a bank or add a manual account in the iPhone app.' : 'Add a manual account to start your picture.'}</p></div></section>`;
-  main.innerHTML = `<p class="intro">${model.live ? 'Your net worth, from your connected banks and saved accounts.' : 'Your progress, your next steps, and your complete financial picture.'}</p><div class="grid wealth-grid">${hero}${notice}<div class="section-label full">PROGRESS</div>${progress}<div class="section-label full">NEXT STEPS</div><div class="plan-cards full">${planningCards()}</div><div class="accounts-heading full"><div class="section-label">ACCOUNTS${model.tracked ? `<small>${model.tracked} tracked</small>` : ''}</div>${model.live ? '' : '<button class="button" data-action="add-account">+ Add manual account</button>'}</div>${ledger}</div>`;
+  main.innerHTML = `<p class="intro">${model.live ? 'Your net worth, from your connected banks and saved accounts.' : 'Your progress, your next steps, and your complete financial picture.'}</p><div class="wealth-layout"><div class="wealth-column">${hero}${notice}<div class="section-label">PROGRESS</div>${progress}</div><div class="wealth-column"><div class="section-label">NEXT STEPS</div><div class="plan-cards">${planningCards()}</div><div class="accounts-heading"><div class="section-label">ACCOUNTS${model.tracked ? `<small>${model.tracked} tracked</small>` : ''}</div>${model.live ? '' : '<button class="button" data-action="add-account">+ Add manual account</button>'}</div>${ledger}</div></div>`;
   attachHistoryScrub();
 }
 function showAccount(id) {
@@ -377,6 +383,7 @@ function showDebt() {
     state.debtExtra = value; showDebt();
   });
 }
+const initialsFor = name => String(name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0].toUpperCase()).join('') || 'A';
 // ── Settings (mirrors SettingsView.swift's profile card and sections) ──
 function planBadge(billing) {
   if (!billing) return { glyph: 'spark', label: 'Sample account' };
@@ -389,14 +396,14 @@ const settingsRow = (glyph, title, subtitle, attributes) => `<${attributes.start
 function settings() {
   const live = state.liveData, profile = live?.profile;
   const name = live ? profile.user.display_name || 'Add your name' : 'Sample account';
-  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0].toUpperCase()).join('') || 'A';
+  const initials = initialsFor(name);
   const badge = planBadge(live?.billing);
   const banks = live ? [...new Map(live.bankAccounts.map(account => [account.itemId, account.institution])).values()] : ['First Horizon', 'Apex Card'];
   main.innerHTML = `<p class="intro">Your account, your data, and your preferences.</p><div class="settings-stack"><button class="card profile-card" data-action="manage-account"><span class="avatar" aria-hidden="true">${esc(initials)}</span><span><strong>${esc(name)}</strong><small>Account, plan, and household</small><span class="plan-badge">${icon(badge.glyph)}${badge.label}</span></span>${chevron}</button>
-<div class="section-label">EXPERIENCE</div><section class="card settings-card">${settingsRow(state.theme === 'light' ? 'moon' : 'sun', 'Appearance', `${state.theme === 'light' ? 'Light' : 'Dark'} · choose how Averlen looks in this browser`, 'data-theme-action')}${settingsRow('spark', 'Values & core spending', 'Set in the iPhone app for Mindful Mode reflections', 'data-action="values-info"')}</section>
-<div class="section-label">MONEY &amp; DATA</div><section class="card settings-card">${settingsRow('bank', 'Connected banks', live && live.banksUnavailable ? 'Couldn’t load bank connections right now' : banks.length ? `${banks.length} connected · ${esc(banks.slice(0, 2).join(', '))}${banks.length > 2 ? '…' : ''}` : 'No banks connected', 'data-action="banks-info"')}${settingsRow('activity', 'Categories', `${categories.length} categories · labels used across Activity and Trends`, 'data-action="categories-info"')}${settingsRow('arrowOut', 'Export your data', 'Download a portable copy of your saved records', 'data-action="manage-account"')}${live ? '' : settingsRow('repeat', 'Reset sample changes', 'Restore the original transactions, accounts, and plans', 'data-action="reset-sample"')}</section>
-<div class="section-label">SECURITY &amp; SUPPORT</div><section class="card settings-card">${settingsRow('shield', 'Saved data & account', 'Export, manage your plan, or delete your account', 'data-action="manage-account"')}${settingsRow('doc', 'Privacy policy', 'See how Averlen handles your information', 'href="../privacy.html" target="_blank" rel="noopener"')}${settingsRow('doc', 'Terms of service', 'Review the terms for using Averlen', 'href="../terms.html" target="_blank" rel="noopener"')}${settingsRow('spark', 'Help & feedback', 'Share an idea or tell us what is not working', 'href="../support.html" target="_blank" rel="noopener"')}</section>
-<button class="button sign-out" data-action="logout">Sign out</button><p class="settings-footer">${live ? 'Averlen for the web · Read-only access to your saved records' : 'Averlen web preview · Sample data, resets on reload'}</p></div>`;
+<div class="settings-columns"><div class="settings-column"><div class="section-label">EXPERIENCE</div><section class="card settings-card">${settingsRow(state.theme === 'light' ? 'moon' : 'sun', 'Appearance', `${state.theme === 'light' ? 'Light' : 'Dark'} · choose how Averlen looks in this browser`, 'data-theme-action')}${settingsRow('spark', 'Values & core spending', 'Set in the iPhone app for Mindful Mode reflections', 'data-action="values-info"')}</section>
+<div class="section-label">MONEY &amp; DATA</div><section class="card settings-card">${settingsRow('bank', 'Connected banks', live && live.banksUnavailable ? 'Couldn’t load bank connections right now' : banks.length ? `${banks.length} connected · ${esc(banks.slice(0, 2).join(', '))}${banks.length > 2 ? '…' : ''}` : 'No banks connected', 'data-action="banks-info"')}${settingsRow('activity', 'Categories', `${categories.length} categories · labels used across Activity and Trends`, 'data-action="categories-info"')}${settingsRow('arrowOut', 'Export your data', 'Download a portable copy of your saved records', 'data-action="manage-account"')}${live ? '' : settingsRow('repeat', 'Reset sample changes', 'Restore the original transactions, accounts, and plans', 'data-action="reset-sample"')}</section></div>
+<div class="settings-column"><div class="section-label">SECURITY &amp; SUPPORT</div><section class="card settings-card">${settingsRow('shield', 'Saved data & account', 'Export, manage your plan, or delete your account', 'data-action="manage-account"')}${settingsRow('doc', 'Privacy policy', 'See how Averlen handles your information', 'href="../privacy.html" target="_blank" rel="noopener"')}${settingsRow('doc', 'Terms of service', 'Review the terms for using Averlen', 'href="../terms.html" target="_blank" rel="noopener"')}${settingsRow('spark', 'Help & feedback', 'Share an idea or tell us what is not working', 'href="../support.html" target="_blank" rel="noopener"')}${settingsRow('activity', live ? 'About web access' : 'About this preview', live ? 'What the website can and can’t do' : 'How the sample preview works', 'data-action="about"')}</section>
+<button class="button sign-out" data-action="logout">Sign out</button><p class="settings-footer">${live ? 'Averlen for the web · Read-only access to your saved records' : 'Averlen web preview · Sample data, resets on reload'}</p></div></div></div>`;
 }
 function showSettingsInfo(kind) {
   const live = state.liveData;
@@ -444,9 +451,7 @@ function render() {
 }
 function setTheme() {
   document.documentElement.dataset.theme = state.theme;
-  const button = document.querySelector('#theme-toggle');
-  button.innerHTML = icon(state.theme === 'light' ? 'moon' : 'sun');
-  button.setAttribute('aria-label', `Switch to ${state.theme === 'light' ? 'dark' : 'light'} appearance`);
+  try { localStorage.setItem('averlen.theme', state.theme); } catch { /* per-browser convenience only */ }
 }
 function openDialog(title, body) {
   document.querySelector('#dialog-title').textContent = title;
@@ -504,7 +509,7 @@ function exportSample() {
 function navigate(destination) { if (dialog.open) dialog.close(); if (location.hash === `#${destination}`) route(); else location.hash = destination; }
 function showMonthlyReport() {
   const data = forMonth(rows.filter(row => !row.trendExcluded), state.month);
-  openDialog(`${monthLabel(state.month)} report`, `${summary(data)}<p class="subtle">${state.month === currentMonth ? `Month to date through ${dateLabel(asOf)}.` : 'Completed month.'} ${state.liveData ? 'Saved records; your Trends exclusions are applied.' : 'Sample transactions only.'}</p><div class="report-categories">${categoryList(data)}</div>`);
+  openDialog(`${monthLabel(state.month)} report`, `${summary(data, { compact: true })}<p class="subtle">${state.month === currentMonth ? `Month to date through ${dateLabel(asOf)}.` : 'Completed month.'} ${state.liveData ? 'Saved records; your Trends exclusions are applied.' : 'Sample transactions only.'}</p><div class="report-categories">${categoryList(data)}</div>`);
 }
 
 function clearLiveRecords() {
@@ -533,9 +538,10 @@ export function attachLiveConnection(configuration, factory, message) {
         months.push(...new Set([currentMonth, ...rows.map(row => row.date.slice(0, 7))])); months.sort().reverse();
         if (!months.includes(state.month)) state.month = months[0];
         document.querySelector('.profile strong').textContent = data.profile.user.display_name || 'Your Averlen account';
+        document.querySelector('.profile .avatar').textContent = initialsFor(data.profile.user.display_name);
         document.querySelector('.profile small').textContent = data.profile.household.name || 'Household';
       } else {
-        document.querySelector('.profile strong').textContent = 'Averlen'; document.querySelector('.profile small').textContent = 'Your account';
+        document.querySelector('.profile strong').textContent = 'Averlen'; document.querySelector('.profile small').textContent = 'Your account'; document.querySelector('.profile .avatar').textContent = 'A';
       }
       updateMonths();
       document.querySelector('.preview-banner>span').textContent = state.session ? 'Saved records · Read-only web access' : 'Averlen for the web';
@@ -548,7 +554,7 @@ export function attachLiveConnection(configuration, factory, message) {
 }
 function liveStatus() {
   if (state.phase === 'loading') {
-    main.innerHTML = '<section class="card account-gate" role="status"><h2>Opening your Averlen account…</h2><p class="note">Checking your household and loading saved records.</p></section>';
+    main.innerHTML = '<section class="loading-state" role="status"><img src="../averlen-logo.png" width="56" height="56" alt=""><span class="spinner" aria-hidden="true"></span><h2>Opening your Averlen account…</h2><p class="subtle">Loading your saved records and balances.</p></section>';
     return;
   }
   main.innerHTML = `<section class="card account-gate"><h2>We couldn’t open your saved records</h2><p class="note">${esc(liveMessage(state.liveError))}</p><div class="button-row"><button class="button primary" data-action="reload-live">Try again</button><button class="button" data-action="logout">Sign out</button></div></section>`;
@@ -610,7 +616,6 @@ function downloadJson(data, filename) {
 document.querySelector('#month').innerHTML = months.map(month => `<option value="${month}">${monthLabel(month)}</option>`).join('');
 document.querySelector('#month').value = state.month;
 document.querySelector('#month').addEventListener('change', event => { state.month = event.target.value; render(); announce(`Showing ${monthLabel(state.month)}.`); });
-document.querySelector('#theme-toggle').addEventListener('click', () => { state.theme = state.theme === 'light' ? 'dark' : 'light'; setTheme(); if (state.route === 'settings') settings(); });
 document.querySelector('#about-preview').addEventListener('click', openAbout);
 document.querySelector('#close-dialog').addEventListener('click', () => dialog.close());
 dialog.addEventListener('cancel', event => { if (dialog.dataset.busy === 'true') event.preventDefault(); });
@@ -628,7 +633,7 @@ document.addEventListener('click', event => {
       'reset-sample': () => { if (isLivePage) { void liveConnection?.refresh(); return; } resetSample(); render(); announce('Sample changes reset.'); },
       'monthly-report': showMonthlyReport,
       retirement: showRetirement, debt: showDebt, ownership: showOwnership,
-      'values-info': () => showSettingsInfo('values'), 'banks-info': () => showSettingsInfo('banks'), 'categories-info': () => showSettingsInfo('categories'),
+      about: openAbout, 'values-info': () => showSettingsInfo('values'), 'banks-info': () => showSettingsInfo('banks'), 'categories-info': () => showSettingsInfo('categories'),
       'add-account': () => showManualAccount(), 'delete-account': showDeletion, 'export-sample': exportSample,
       'reset-password-info': () => openDialog('Reset your password', '<p class="subtle">The live website will send a reset link to the email on your Averlen account. Email delivery is not connected in this preview, and no message has been sent.</p>'),
     };
@@ -653,7 +658,7 @@ document.addEventListener('click', event => {
   const accountButton = event.target.closest('[data-account]');
   if (accountButton) showAccount(accountButton.dataset.account);
   const monthButton = event.target.closest('[data-month]');
-  if (monthButton) { state.month = monthButton.dataset.month; document.querySelector('#month').value = state.month; render(); announce(`Showing ${monthLabel(state.month)}.`); }
+  if (monthButton) { state.month = monthButton.dataset.month === state.month && monthButton.classList.contains('bar-button') ? currentMonth : monthButton.dataset.month; document.querySelector('#month').value = state.month; render(); announce(`Showing ${monthLabel(state.month)}.`); }
   if (event.target.closest('[data-theme-action]')) { state.theme = state.theme === 'light' ? 'dark' : 'light'; setTheme(); if (state.route === 'settings') settings(); }
 });
 function route() {
