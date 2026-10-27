@@ -152,3 +152,7 @@ b.status-onTrack{color:var(--green)}b.status-needsAttention{color:var(--amber)}b
 .category-chip{display:inline-flex;align-items:center;gap:9px;color:var(--text)}
 .swatch{width:10px;height:10px;border-radius:50%}
 @media(max-width:700px){.wealth-hero .hero-number{font-size:40px}.plan-card,.notice-card{padding:16px;gap:12px}.ledger-head,.ledger-row,.settings-card .settings-row{padding-left:16px;padding-right:16px}.notice-card{grid-template-columns:44px minmax(0,1fr)}.notice-card>.button{grid-column:1/-1}.metric-pills{gap:8px}.inline-form{flex-wrap:wrap}}
+/* Plaid merchant logos over the category icon (iOS TransactionRowView). */
+.category-icon{position:relative;overflow:hidden}
+.merchant-logo{position:absolute;inset:4px;width:calc(100% - 8px);height:calc(100% - 8px);object-fit:contain;border-radius:6px;opacity:0;transition:opacity .15s}
+.logo-loaded .merchant-logo{opacity:1}.logo-loaded svg{visibility:hidden}

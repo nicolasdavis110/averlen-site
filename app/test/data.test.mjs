@@ -82,3 +82,18 @@ test('malformed bank balances are rejected rather than shown', () => {
   assert.throws(() => normalizeBankAccounts([{ item: { item_id: 'i' }, response: { accounts: [{ id: 'a', type: 'depository', balances: { current: '12' } }] } }]), /INVALID_BALANCES/);
   assert.throws(() => normalizeBankAccounts([{ item: {}, response: { accounts: [] } }]), /INVALID_BALANCES/);
 });
+test('only https Plaid logos are kept, like PlaidRemoteLogo on iOS', () => {
+  const data = fixture();
+  const [a, b] = data.payload.changes.transactions;
+  a.merchant_logo_url = 'https://plaid-merchant-logos.plaid.com/example_1.png';
+  b.merchant_logo_url = 'https://evil.example/plaid.com.png';
+  data.payload.changes.categories[0].icon = 'fork.knife';
+  const result = normalizeSnapshot(data.profile, data.billing, data.payload);
+  assert.equal(result.transactions.find(tx => tx.id === a.id).logo, 'https://plaid-merchant-logos.plaid.com/example_1.png');
+  assert.equal(result.transactions.find(tx => tx.id === b.id).logo, '');
+  assert.equal(result.categories.find(cat => cat.id === 'groceries').icon, 'fork.knife');
+  for (const bad of ['http://cdn.plaid.com/x.png', 'javascript:alert(1)', 'https://plaid.com.evil.example/x.png']) {
+    a.merchant_logo_url = bad;
+    assert.equal(normalizeSnapshot(data.profile, data.billing, data.payload).transactions.find(tx => tx.id === a.id).logo, '');
+  }
+});

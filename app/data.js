@@ -28,6 +28,11 @@ function day(value, { calendarDate = false } = {}) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(`${date}T12:00:00Z`)) || new Date(`${date}T12:00:00Z`).toISOString().slice(0, 10) !== date) throw new DataError('INVALID_DATE');
   return date;
 }
+// Same rule as PlaidRemoteLogo on iOS: only https artwork served by Plaid.
+function plaidLogo(value) {
+  if (typeof value !== 'string' || !value) return '';
+  try { const url = new URL(value); const host = url.hostname.toLowerCase(); return url.protocol === 'https:' && (host === 'plaid.com' || host.endsWith('.plaid.com')) ? url.href : ''; } catch { return ''; }
+}
 const plainObject = value => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 function rows(value) { if (!Array.isArray(value)) throw new DataError('INVALID_SYNC_RESPONSE'); return value; }
 function belongs(row, householdId) {
@@ -43,7 +48,7 @@ export function normalizeSnapshot(profile, billing, payload) {
   const categories = categoryRows.filter(row => belongs(row, householdId) && !flag(row.is_deleted)).map(row => ({
     id: row.id, name: text(row.name) || 'Unnamed category',
     color: /^[\da-f]{6}$/i.test(text(row.color_hex).replace('#', '')) ? `#${row.color_hex.replace('#', '')}` : '#6C6E73',
-    icon: 'bag', excluded: flag(row.is_excluded), income: row.default_slug === 'income',
+    icon: text(row.icon) || 'bag', excluded: flag(row.is_excluded), income: row.default_slug === 'income',
     transfer: row.default_slug === 'internal_transfers', order: Number(row.sort_order) || 0,
   })).sort((a, b) => a.order - b.order);
   const categoryMap = new Map(categories.map(row => [row.id, row]));
@@ -73,7 +78,7 @@ export function normalizeSnapshot(profile, billing, payload) {
       income: flag(row.is_income),
       transfer: flag(row.is_internal_transfer) || category?.transfer === true,
       excluded: category?.excluded === true || (!flag(row.is_income) && categoryRows.find(cat => cat.id === row.category_id)?.default_slug === 'investments' && !includeInvestments),
-      trendExcluded: trendExcludedIds.has(row.id.toLowerCase()), note: text(row.note),
+      trendExcluded: trendExcludedIds.has(row.id.toLowerCase()), note: text(row.note), logo: plaidLogo(row.merchant_logo_url),
     };
   }).sort((a, b) => b.date.localeCompare(a.date));
   if (needsUncategorized) categories.push({ id: 'uncategorized', name: 'Uncategorized', color: '#6C6E73', icon: 'bag' });

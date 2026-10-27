@@ -35,6 +35,21 @@ const paths = {
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   shield: '<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6Z"/>',
   doc: '<path d="M6 3h8l4 4v14H6Z"/><path d="M14 3v4h4M9 12h6M9 16h6"/>',
+  gift: '<rect x="3" y="8" width="18" height="5" rx="1"/><path d="M5 13v8h14v-8M12 8v13M12 8C9 8 7 4 9.5 3.5S12 8 12 8s.5-5 2.5-4.5S15 8 12 8"/>',
+  family: '<circle cx="7" cy="5" r="2"/><circle cx="17" cy="5" r="2"/><circle cx="12" cy="11" r="1.6"/><path d="M5 21v-6l-1-5h6l-1 5v6M15 21v-6l-1-5h6l-1 5v6M11 21v-4h2v4"/>',
+  fuel: '<path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M3 21h12M4 10h10M14 9l3 2v7a1.5 1.5 0 0 0 3 0V8l-3-3"/>',
+  wrench: '<path d="M14.5 6.5a4 4 0 0 0 5 5L12 19a2.1 2.1 0 0 1-3-3l7.5-7.5a4 4 0 0 0-2-2Z"/><path d="m4 4 5 5M3 7l2-2"/>',
+  personOne: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  heart: '<path d="M12 20s-7-4.5-9-9a4.5 4.5 0 0 1 9-3 4.5 4.5 0 0 1 9 3c-2 4.5-9 9-9 9Z"/>',
+  plane: '<path d="M10 14 3 12l1-2 7 1 4-6 2 1-2 6 5 2v2l-6-1-3 5h-2l1-5Z"/>',
+  phone: '<rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/>',
+  cap: '<path d="m2 9 10-5 10 5-10 5Z"/><path d="M6 11v5c3 2.5 9 2.5 12 0v-5M22 9v6"/>',
+  paw: '<circle cx="6" cy="10" r="2"/><circle cx="18" cy="10" r="2"/><circle cx="9.5" cy="5.5" r="2"/><circle cx="14.5" cy="5.5" r="2"/><path d="M12 12c-3 0-6 4-6 6.5S8 21 12 19.5c4 1.5 6 1 6-1S15 12 12 12Z"/>',
+  dumbbell: '<path d="M6 7v10M18 7v10M3 10v4M21 10v4M6 12h12"/>',
+  music: '<path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>',
+  cup: '<path d="M4 9h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5ZM17 11h1.5a2.5 2.5 0 0 1 0 5H17M3 22h16M8 2v4M12 2v4"/>',
+  tag: '<path d="M3 12V3h9l9 9-9 9Z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
+  question: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.7M12 16.5v.1"/>',
 };
 const icon = name => `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name] || paths.bank}</svg>`;
 const esc = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -67,10 +82,16 @@ const selectedRows = () => forMonth(rows, state.month);
 const announce = message => { document.querySelector('#announcement').textContent = message; };
 const empty = message => `<div class="empty">${esc(message)}</div>`;
 
-function catIcon(cat) { return `<span class="category-icon" style="--category-color:${cat.color}">${icon(cat.icon)}</span>`; }
+// SF Symbol names stored by the iPhone app, mapped to this page's icons.
+const sfIcons = { 'house.fill': 'home', 'creditcard.fill': 'card', 'cart.fill': 'cart', 'bag.fill': 'bag', 'fork.knife': 'utensils', 'gift.fill': 'gift', 'chart.line.uptrend.xyaxis': 'trends', 'bolt.fill': 'bolt', 'figure.2.and.child.holdinghands': 'family', 'fuelpump.fill': 'fuel', 'wrench.and.screwdriver.fill': 'wrench', 'person.fill': 'personOne', 'heart.fill': 'heart', 'tv.fill': 'play', airplane: 'plane', 'car.fill': 'car', 'arrow.down.circle.fill': 'income', iphone: 'phone', 'graduationcap.fill': 'cap', 'pawprint.fill': 'paw', 'dumbbell.fill': 'dumbbell', 'music.note': 'music', 'cup.and.saucer.fill': 'cup', 'tag.fill': 'tag', 'arrow.left.arrow.right': 'repeat', 'dollarsign.circle.fill': 'income', 'questionmark.circle': 'question' };
+// A merchant logo sits over the category icon, which stays as the fallback
+// until the image loads (and if it fails), as in TransactionRowView.
+function catIcon(cat, logo = '') { return `<span class="category-icon" style="--category-color:${cat.color}">${icon(sfIcons[cat.icon] || cat.icon)}${logo ? `<img class="merchant-logo" src="${esc(logo)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : ''}</span>`; }
+document.addEventListener('load', event => { if (event.target.classList?.contains('merchant-logo')) event.target.parentElement.classList.add('logo-loaded'); }, true);
+document.addEventListener('error', event => { if (event.target.classList?.contains('merchant-logo')) event.target.remove(); }, true);
 function txRow(tx, detailed = false) {
   const cat = catFor(tx.category);
-  return `<button class="tx-row" data-tx="${esc(tx.id)}" aria-label="${esc(tx.merchant)}, ${money(tx.cents)}, ${esc(cat.name)}, ${dateLabel(tx.date)}">${catIcon(cat)}<span><span class="merchant">${esc(tx.merchant)}</span><span class="tx-meta">${detailed ? `${esc(cat.name)}${tx.transfer ? ' · Transfer, not in totals' : tx.excluded ? ' · Excluded from totals' : ''}` : `${dateLabel(tx.date)} · ${esc(cat.name)}`}</span></span>${detailed ? `<span class="table-category">${esc(cat.name)}</span>` : ''}<span class="tx-amount ${tx.income ? 'positive' : ''}">${tx.income ? '+' : '−'}${money(tx.cents)}</span></button>`;
+  return `<button class="tx-row" data-tx="${esc(tx.id)}" aria-label="${esc(tx.merchant)}, ${money(tx.cents)}, ${esc(cat.name)}, ${dateLabel(tx.date)}">${catIcon(cat, tx.logo)}<span><span class="merchant">${esc(tx.merchant)}</span><span class="tx-meta">${detailed ? `${esc(cat.name)}${tx.transfer ? ' · Transfer, not in totals' : tx.excluded ? ' · Excluded from totals' : ''}` : `${dateLabel(tx.date)} · ${esc(cat.name)}`}</span></span>${detailed ? `<span class="table-category">${esc(cat.name)}</span>` : ''}<span class="tx-amount ${tx.income ? 'positive' : ''}">${tx.income ? '+' : '−'}${money(tx.cents)}</span></button>`;
 }
 function categoryList(data, limit = 7) {
   const cats = categoryTotals(data).slice(0, limit);
@@ -112,15 +133,20 @@ function home() {
   main.innerHTML = `<div class="grid"><div class="stack"><section class="card hero"><div class="overline">Spent in ${longMonth(state.month)}</div><div class="hero-number">${money(sum.spending)}</div>${badge}<p class="subtle">${purchases} ${state.liveData ? '' : 'sample '}purchase${purchases === 1 ? '' : 's'}${state.month === currentMonth ? ` through ${dateLabel(asOf)}` : ''}</p><div class="stats"><div class="stat-tile"><div class="stat-label">Income</div><div class="stat-value positive">${money(sum.income)}</div></div><div class="stat-tile"><div class="stat-label">Net</div><div class="stat-value ${sum.net >= 0 ? 'positive' : ''}">${sum.net >= 0 ? '+' : '−'}${money(Math.abs(sum.net))}</div></div></div></section>${story ? `<button class="card attention" data-category="${esc(story.id)}"><span class="attention-label">Worth a look</span><span class="attention-body">${catIcon(story)}<span><strong>${esc(story.name)} changed most</strong><small>${roundMoney(story.delta)} more than ${longMonth(story.prior)}${story.comparison ? ` ${story.comparison}` : ''}</small></span><span class="chevron" aria-hidden="true">›</span></span></button>` : ''}<section class="card"><div class="section-heading"><div><h2>Monthly pace</h2><p class="card-subtitle">Cumulative spending through day ${paced.day}</p></div>${paced.projected != null ? `<div class="projected"><span>Projected</span><strong>${compact(paced.projected)}</strong></div>` : ''}</div>${vsTypical != null && Math.abs(vsTypical) >= 100 ? `<p class="pace-note">${vsTypical > 0 ? '↗' : '↘'} ${roundMoney(Math.abs(vsTypical))} ${vsTypical > 0 ? 'above' : 'below'} typical today</p>` : ''}${paceChart(paced)}</section></div><div class="stack"><section class="card">${header('Spending by category', 'Follow the numbers into your activity')}<div>${categoryList(data)}</div></section></div><section class="card full">${header('Recent activity', 'The details behind your month', '<a class="text-button" href="#activity">View all activity →</a>')}<div class="transaction-list">${data.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5).map(tx => txRow(tx)).join('') || empty('No transactions in this month.')}</div></section></div>`;
 }
 function activity() {
-  main.innerHTML = `<p class="intro">Explore your transactions, follow a category, or find a particular purchase.</p>${summary(selectedRows())}<div class="filters"><div class="search-wrap">${icon('search')}<label class="sr-only" for="search">Search transactions</label><input id="search" type="search" placeholder="Search transactions…" value="${esc(state.query)}" autocomplete="off"></div><label class="sr-only" for="category-filter">Category</label><select id="category-filter"><option value="">All categories</option>${categories.map(cat => `<option value="${esc(cat.id)}" ${state.category === cat.id ? 'selected' : ''}>${esc(cat.name)}</option>`).join('')}</select><label class="sr-only" for="type-filter">Transaction type</label><select id="type-filter"><option value="">All activity</option><option value="spending" ${state.type === 'spending' ? 'selected' : ''}>Spending</option><option value="income" ${state.type === 'income' ? 'selected' : ''}>Income</option></select></div><section class="card activity"><p class="result-count" id="result-count" role="status"></p><div class="table-header"><span>Transaction</span><span>Category</span><span class="right">Amount</span></div><div id="activity-rows"></div></section>`;
+  main.innerHTML = `<p class="intro">Explore your transactions, follow a category, or find a particular purchase.</p>${summary(selectedRows())}<div class="filters"><div class="search-wrap">${icon('search')}<label class="sr-only" for="search">Search transactions</label><input id="search" type="search" placeholder="Search transactions…" value="${esc(state.query)}" autocomplete="off"></div><label class="sr-only" for="category-filter">Category</label><select id="category-filter"><option value="">All categories</option>${categories.map(cat => `<option value="${esc(cat.id)}" ${state.category === cat.id ? 'selected' : ''}>${esc(cat.name)}</option>`).join('')}</select><label class="sr-only" for="type-filter">Transaction type</label><select id="type-filter"><option value="">All activity</option><option value="spending" ${state.type === 'spending' ? 'selected' : ''}>Spending</option><option value="income" ${state.type === 'income' ? 'selected' : ''}>Income</option><option value="transfers" ${state.type === 'transfers' ? 'selected' : ''}>Transfers</option></select></div><section class="card activity"><p class="result-count" id="result-count" role="status"></p><div class="table-header"><span>Transaction</span><span>Category</span><span class="right">Amount</span></div><div id="activity-rows"></div></section>`;
   document.querySelector('#search').addEventListener('input', event => { state.query = event.target.value; activityRows(); });
   document.querySelector('#category-filter').addEventListener('change', event => { state.category = event.target.value; activityRows(); });
   document.querySelector('#type-filter').addEventListener('change', event => { state.type = event.target.value; activityRows(); });
   activityRows();
 }
 function activityRows() {
-  const data = rows.filter(tx => tx.date.slice(0, 7) === state.month && (!state.category || tx.category === state.category) && (!state.type || (!tx.transfer && !tx.excluded && tx.income === (state.type === 'income'))) && `${tx.merchant} ${catFor(tx.category).name}`.toLowerCase().includes(state.query.toLowerCase().trim())).sort((a, b) => b.date.localeCompare(a.date));
-  document.querySelector('#result-count').textContent = `${data.length} ${state.liveData ? '' : 'sample '}transaction${data.length === 1 ? '' : 's'} · ${monthLabel(state.month)}`;
+  // Like the iPhone's Activity, transfers between your own accounts stay out
+  // of the list (and its count) unless you ask for them.
+  const showTransfers = state.type === 'transfers' || catFor(state.category).transfer === true;
+  const typeMatch = tx => state.type === 'transfers' ? tx.transfer : !state.type || (!tx.transfer && !tx.excluded && tx.income === (state.type === 'income'));
+  const data = rows.filter(tx => tx.date.slice(0, 7) === state.month && (showTransfers || !tx.transfer) && (!state.category || tx.category === state.category) && typeMatch(tx) && `${tx.merchant} ${catFor(tx.category).name}`.toLowerCase().includes(state.query.toLowerCase().trim())).sort((a, b) => b.date.localeCompare(a.date));
+  const hiddenTransfers = showTransfers ? 0 : rows.filter(tx => tx.transfer && tx.date.slice(0, 7) === state.month).length;
+  document.querySelector('#result-count').textContent = `${data.length} ${state.liveData ? '' : 'sample '}transaction${data.length === 1 ? '' : 's'} · ${monthLabel(state.month)}${hiddenTransfers ? ` · ${hiddenTransfers} transfer${hiddenTransfers === 1 ? '' : 's'} hidden` : ''}`;
   const days = [...new Set(data.map(tx => tx.date))];
   document.querySelector('#activity-rows').innerHTML = days.map(date => {
     const group = data.filter(tx => tx.date === date);
