@@ -9,6 +9,6 @@ export const configuration = {
   firebase: {
     apiKey: 'AIzaSyB3Y7v3VJ0IjQPKzhMItKb7dQ2SGyYJcuI',
     projectId: 'candor-85672',
-    authDomain: 'auth.averlen.app',
+    authDomain: 'candor-85672.firebaseapp.com',
   },
 };
