@@ -1,5 +1,5 @@
-import { categories, accounts, localDateKey, makeDemo, forMonth, totals, categoryTotals, makeWealthHistory, deletionPolicy, monthChange, attentionStory, pace, trendsComparison, monthlySeries } from './model.js';
-import { RETIREMENT, demoRetirementPlan, parseRetirementPlan, retirementProjection, retirementEligibleBalance, statusLabel, parseLoans, demoLoans, loanResult, payoffScenario, debtPortfolio, loanKindName, parseOwnership, ownershipLens } from './planning.js';
+import { categories, accounts, localDateKey, makeDemo, forMonth, totals, categoryTotals, makeWealthHistory, deletionPolicy, monthChange, attentionStory, pace, trendsComparison, monthlySeries } from './model.js?v=256e4a16cf';
+import { RETIREMENT, demoRetirementPlan, parseRetirementPlan, retirementProjection, retirementEligibleBalance, statusLabel, parseLoans, demoLoans, loanResult, payoffScenario, debtPortfolio, loanKindName, parseOwnership, ownershipLens } from './planning.js?v=256e4a16cf';
 
 const paths = {
   home: '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/>',

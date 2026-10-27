@@ -69,7 +69,16 @@ an isolated checkout of that exact commit and contains no runtime secrets.
 
 ## Verification
 
-`node --test app/test/*.test.mjs preview/model.test.mjs`
+`node --test app/test/*.test.mjs preview/*.test.mjs`
+
+## Releasing
+
+GitHub Pages lets browsers cache every file for ten minutes. Before each push
+to `main`, run `node scripts/stamp-version.mjs`: it gives every local script and
+stylesheet URL a `?v=` hash of the app's code, so browsers fetch a release as a
+complete new set of files instead of mixing old and new modules. The
+`version.test.mjs` test fails when the stamps are out of date. Pages themselves
+can still be cached for up to ten minutes; a reload shows the new release.
 
 The local-only `app/test/qa.js` harness injects a fake Firebase adapter and
 synthetic server responses and refuses to run outside loopback hosts. It does
