@@ -96,34 +96,6 @@
 
         .message.error { color: var(--error); }
 
-        .code-card {
-            display: grid;
-            gap: 9px;
-            margin-top: 26px;
-            padding: 18px;
-            border: 1px solid rgba(95, 175, 135, 0.34);
-            border-radius: 13px;
-            background: rgba(95, 175, 135, 0.09);
-            text-align: center;
-        }
-
-        .code-label {
-            color: var(--text-secondary);
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.8px;
-            text-transform: uppercase;
-        }
-
-        .code {
-            color: var(--text);
-            font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-            font-size: clamp(13px, 4vw, 17px);
-            font-weight: 700;
-            letter-spacing: 0.4px;
-            overflow-wrap: anywhere;
-        }
-
         .actions { display: grid; gap: 12px; margin-top: 24px; }
 
         .button {
@@ -179,31 +151,20 @@
         <section class="card" aria-live="polite">
             <div class="mark" id="mark">✓</div>
             <h1 id="title">Your invitation is ready</h1>
-            <p class="message" id="message">If your partner shared TestFlight access, install the current beta first. Then return here to join your partner.</p>
-
-            <div class="code-card" id="code-card">
-                <span class="code-label">Invite code</span>
-                <span class="code" id="code"></span>
-            </div>
+            <p class="message" id="message">Open your invitation in Averlen to join your partner. If you don't have the app yet, get it first.</p>
 
             <div class="actions" id="actions">
-                <a class="button hidden" id="install-button" href="#">Get Averlen</a>
-                <button class="button secondary" id="copy-button" type="button">Copy invite code</button>
+                <a class="button" id="open-button" href="#">Open in Averlen</a>
+                <a class="button secondary" id="install-button" href="https://apps.apple.com/us/app/averlen/id6792603482">Get Averlen</a>
             </div>
 
-            <p class="next-step" id="next-step">After installing the app, open the invitation link again from the email. You can also enter the code during setup.</p>
+            <p class="next-step" id="next-step">After installing, come back to your invitation email and tap the button again. If Averlen doesn't open, press and hold the button in the email and choose Open in Safari.</p>
             <p class="transition">Candor is becoming Averlen. Existing invitation links still work.</p>
             <p class="support">Need help? <a href="mailto:support@candorfinance.app">support@candorfinance.app</a></p>
         </section>
     </main>
 
     <script>
-        // Set this to Averlen's App Store product-page URL after launch, or to
-        // an approved external TestFlight public link during broader beta.
-        // The invite email and app link never need to change.
-        const installUrl = "";
-        const installLabel = "Get Averlen";
-
         const params = new URLSearchParams(window.location.search);
         const rawCode = params.get("code") || "";
         const compactCode = rawCode.toUpperCase().replace(/[\s-]/g, "");
@@ -217,8 +178,8 @@
             inviteCode = rawCode.trim().toLowerCase();
         }
 
-        // The one-time code remains in memory for copying but is removed from
-        // the visible address bar and browser history immediately.
+        // The one-time code remains in memory for the Open button but is removed
+        // from the visible address bar and browser history immediately.
         if (window.location.search) {
             window.history.replaceState({}, document.title, "/invite/");
         }
@@ -226,11 +187,7 @@
         const title = document.getElementById("title");
         const message = document.getElementById("message");
         const mark = document.getElementById("mark");
-        const codeCard = document.getElementById("code-card");
-        const code = document.getElementById("code");
-        const actions = document.getElementById("actions");
-        const copyButton = document.getElementById("copy-button");
-        const installButton = document.getElementById("install-button");
+        const openButton = document.getElementById("open-button");
         const nextStep = document.getElementById("next-step");
 
         if (!inviteCode) {
@@ -239,35 +196,23 @@
             title.textContent = "This invitation link is incomplete";
             message.textContent = "Open the newest invitation email you received, or ask your partner to send a new invitation.";
             message.classList.add("error");
-            codeCard.classList.add("hidden");
-            actions.classList.add("hidden");
+            openButton.classList.add("hidden");
             nextStep.classList.add("hidden");
         } else {
-            code.textContent = inviteCode;
+            // Safari won't open the app from a link on the same domain, so
+            // this points at the other invite domain. Only verified https links
+            // may carry the invitation: any app can claim a custom URL scheme.
+            const otherHost = window.location.hostname === "averlen.app" ? "candorfinance.app" : "averlen.app";
+            openButton.href = `https://${otherHost}/invite/?code=${encodeURIComponent(inviteCode)}`;
 
-            if (installUrl) {
-                installButton.href = installUrl;
-                installButton.textContent = installLabel;
-                installButton.classList.remove("hidden");
-                message.textContent = "Install the app, then return to this invitation to join your partner's household.";
+            const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
+                || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+            if (!isIOS) {
+                title.textContent = "Open this on your iPhone";
+                message.textContent = "Averlen is an iPhone app. Open your invitation email on your iPhone and tap the button there.";
+                openButton.classList.add("hidden");
+                nextStep.classList.add("hidden");
             }
-
-            copyButton.addEventListener("click", async () => {
-                try {
-                    await navigator.clipboard.writeText(inviteCode);
-                } catch (_) {
-                    const helper = document.createElement("textarea");
-                    helper.value = inviteCode;
-                    helper.setAttribute("readonly", "");
-                    helper.style.position = "fixed";
-                    helper.style.opacity = "0";
-                    document.body.appendChild(helper);
-                    helper.select();
-                    document.execCommand("copy");
-                    helper.remove();
-                }
-                copyButton.textContent = "Invite code copied";
-            });
         }
     </script>
 </body>
